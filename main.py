@@ -2,7 +2,7 @@
 import argparse
 import torch
 from data.dataset import Pataka_Dataset
-from train.train_vae import train_vae
+from train.train_vae import train_vae, test_vae
 import warnings ; warnings.warn = lambda *args,**kwargs: None
 
 
@@ -13,14 +13,13 @@ def main():
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     else:
         device = torch.device("cpu")
-    vae_dataset = Pataka_Dataset(DBs = ['Gita','Neurovoz'], train_size=0.8, mode = 'train', seed=SEED)
+    vae_dataset = Pataka_Dataset(DBs = ['Gita','Neurovoz','Saarbruecken'], train_size=0.8, mode = 'train', seed=SEED)
     vae_dataset = torch.utils.data.DataLoader(vae_dataset, batch_size=args.batch_size, shuffle=True)
-    vae = train_vae(vae_dataset, x_dim=1, z_dim=32, epochs=args.nEpochs, lr=args.lr, device=device)
-    torch.save({
-            'epoch': args.nEpochs,
-            'model_state_dict': vae.state_dict(),
-            }, 'vae.pth')
-    print('Model saved as vae.pth')
+       
+    test_dataset = Pataka_Dataset(DBs = ['Gita','Neurovoz'], train_size=0.8, mode = 'test', seed=SEED)
+    test_dataset = torch.utils.data.DataLoader(test_dataset, batch_size=args.batch_size, shuffle=True)
+
+    vae = train_vae(vae_dataset, test_dataset, x_dim=args.inChannels, z_dim=32, epochs=args.nEpochs, lr=args.lr, device=device)
     return
 
 
@@ -31,7 +30,7 @@ def get_arguments():
     parser.add_argument('--batch_size', type=int, default=32)
     parser.add_argument('--nEpochs', type=int, default=20)
     parser.add_argument('--device', type=str, default='0')
-    parser.add_argument('--seed', type=int, default=123)
+    parser.add_argument('--seed', type=int, default=1234)
     parser.add_argument('--inChannels', type=int, default=1)
     parser.add_argument('--lr', default=2e-5, type=float,
                         help='learning rate (default: 1e-3)')

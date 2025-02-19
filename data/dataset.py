@@ -5,6 +5,7 @@ import torchaudio.transforms as T
 from torch.utils.data import Dataset
 from sklearn.preprocessing import MinMaxScaler
 import numpy as np
+import random
 
 SAMPLE_RATE = 44100
 DATA_PATH_Gita = "/home/jdariasl/Documents/Experiments/Experiments_EmiroIbarra/Parkinson_datasets/Gita/Pataka/"
@@ -270,7 +271,7 @@ def Read_Saarbruecken_DB(DATA_PATH_SaarB):
     return Paths, Labels, Speaker_IDs
 
 
-def compute_norm_spect(signals, sample_rate):
+def compute_norm_spect(signal, sample_rate):
     n_fft = 2048
     win_length = int(0.015 * sample_rate)
     hop_length = int(0.010 * sample_rate)
@@ -291,7 +292,39 @@ def compute_norm_spect(signals, sample_rate):
     )
 
     scaler = MinMaxScaler()
-    mel_spect = librosa.power_to_db(mel_spectrogram(torch.from_numpy(signals)))
+    signal = augment_audio(signal, sample_rate)
+    mel_spect = librosa.power_to_db(mel_spectrogram(torch.from_numpy(signal)))
+    mel_spect = augment_spectrogram(mel_spect)
     mel_spect_norm = scaler.fit_transform(mel_spect.squeeze(0))
     mel_spectrograms = np.expand_dims(mel_spect_norm, 0)
     return mel_spectrograms
+
+def augment_spectrogram(spectrogram, prob = 0.5, noise_factor=0.005, mask_percentage=0.1):
+    
+    # Adding noise
+    if random.random() > prob:
+        noise = np.random.randn(*spectrogram.shape) * noise_factor
+        spectrogram = spectrogram + noise
+    
+    # Masking
+    if random.random() > prob:
+        num_masked_bins = int(mask_percentage * spectrogram.shape[0])
+        mask_start = random.randint(0, spectrogram.shape[0] - num_masked_bins)
+        spectrogram[mask_start:mask_start + num_masked_bins, :] = 0
+    
+    return spectrogram
+
+def augment_audio(signal, sample_rate, prob = 0.5, time_stretch_range=(0.8, 1.2), pitch_shift_range=(-2, 2)):
+    
+    # Time stretching
+    #if random.random() > prob:
+    #    time_stretch_factor = random.uniform(*time_stretch_range)
+    #    signal = librosa.effects.time_stretch(signal, rate=time_stretch_factor)
+    
+    # Pitch shifting
+    if random.random() > prob:
+        pitch_shift_steps = random.randint(*pitch_shift_range)
+        signal = librosa.effects.pitch_shift(signal, sr=sample_rate, n_steps = pitch_shift_steps)
+    
+    return signal 
+    
