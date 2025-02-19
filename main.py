@@ -1,8 +1,10 @@
-
+#!/usr/bin/env python -W ignore::DeprecationWarning
 import argparse
 import torch
 from data.dataset import Pataka_Dataset
 from train.train_vae import train_vae
+import warnings ; warnings.warn = lambda *args,**kwargs: None
+
 
 def main():
     args = get_arguments()
@@ -11,9 +13,15 @@ def main():
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     else:
         device = torch.device("cpu")
-    vae_dataset = Pataka_Dataset(DBs = ['Gita','Neurovoz','Saarbruecken'], train_size=0.8, mode = 'train', seed=SEED)
+    vae_dataset = Pataka_Dataset(DBs = ['Gita','Neurovoz'], train_size=0.8, mode = 'train', seed=SEED)
     vae_dataset = torch.utils.data.DataLoader(vae_dataset, batch_size=args.batch_size, shuffle=True)
     vae = train_vae(vae_dataset, x_dim=1, z_dim=32, epochs=args.nEpochs, lr=args.lr, device=device)
+    torch.save({
+            'epoch': args.nEpochs,
+            'model_state_dict': vae.state_dict(),
+            }, 'vae.pth')
+    print('Model saved as vae.pth')
+    return
 
 
 def get_arguments():

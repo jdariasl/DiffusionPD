@@ -3,7 +3,7 @@ import os
 import torch
 import torchaudio.transforms as T
 from torch.utils.data import Dataset
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import MinMaxScaler
 import numpy as np
 
 SAMPLE_RATE = 44100
@@ -30,9 +30,7 @@ class Pataka_Dataset(Dataset):
         self.DBs = DBs
         self.mode = mode
         self.paths, self.labels, self.speaker_ids, self.dbs_id = self.read_data()
-        (
-            self.signals,
-            self.y_label,
+        (   self.y_label,
             self.subject_group,
             self.db_group,
             self.segments_paths,
@@ -41,7 +39,7 @@ class Pataka_Dataset(Dataset):
         ) = self.process_select_signals(SAMPLE_RATE)
 
     def __len__(self):
-        return len(self.signals)
+        return len(self.segments_paths)
 
     def __getitem__(self, index):
         audio, _ = librosa.load(self.segments_paths[index], sr=SAMPLE_RATE)
@@ -292,15 +290,8 @@ def compute_norm_spect(signals, sample_rate):
         mel_scale="htk",
     )
 
-    mel_spectrograms = []
-    scaler = StandardScaler()
-    print("Calculating mel spectrograms")
-    for i in range(signals.shape[0]):
-        mel_spect = librosa.power_to_db(
-            mel_spectrogram(torch.from_numpy(signals[i, :]))
-        )
-        mel_spect_norm = scaler.fit_transform(mel_spect)
-        mel_spectrograms.append(mel_spect_norm)
-        print("\r Processed {}/{} files".format(i, signals.shape[0]), end="")
-    mel_spectrograms = np.stack(mel_spectrograms, axis=0)
+    scaler = MinMaxScaler()
+    mel_spect = librosa.power_to_db(mel_spectrogram(torch.from_numpy(signals)))
+    mel_spect_norm = scaler.fit_transform(mel_spect.squeeze(0))
+    mel_spectrograms = np.expand_dims(mel_spect_norm, 0)
     return mel_spectrograms

@@ -30,8 +30,8 @@ class VAE(nn.Module):
             kernel_size=3, 
             stride=2, 
             padding=1)
-        self.fc_mu = nn.Linear(64 * 8 * 8, self.latent_dim)
-        self.fc_logvar = nn.Linear(64 * 8 * 8, self.latent_dim)
+        self.fc_mu = nn.Linear(64 * 9 * 6, self.latent_dim)
+        self.fc_logvar = nn.Linear(64 * 9 * 6, self.latent_dim)
         
         self.spec_enc = torch.nn.Sequential(
             self.enc_conv1,
@@ -47,9 +47,20 @@ class VAE(nn.Module):
 
 
         # Decoder
-        self.fc_dec = nn.Linear(self.latent_dim, 64 * 8 * 8)
-        self.dec_conv1 = nn.ConvTranspose2d(64, 32, kernel_size=3, stride=2, padding=1)
-        self.dec_conv2 = nn.ConvTranspose2d(32, self.x_dim, kernel_size=3, stride=2, padding=1)
+        self.fc_dec = nn.Linear(self.latent_dim, 64 * 9 * 6)
+        self.dec_conv1 = nn.ConvTranspose2d(self.hidden_dims_spectrogram[2], self.hidden_dims_spectrogram[1], kernel_size=3, stride=2, padding=1)
+        self.dec_conv2 = nn.ConvTranspose2d(self.hidden_dims_spectrogram[1], self.hidden_dims_spectrogram[0], kernel_size=3, stride=2, padding=1)
+        self.dec_conv3 = nn.ConvTranspose2d(self.hidden_dims_spectrogram[0], self.x_dim, kernel_size=3, stride=2, padding=1)
+        self.spec_dec = torch.nn.Sequential(
+            self.dec_conv1,
+            nn.ReLU(),
+            nn.BatchNorm2d(self.hidden_dims_spectrogram[1]),
+            self.dec_conv2,
+            nn.ReLU(),
+            nn.BatchNorm2d(self.hidden_dims_spectrogram[0]),
+            self.dec_conv3,
+            nn.Sigmoid()
+        )
         
     def encode(self, x):
         x = self.spec_enc(x)
@@ -65,9 +76,8 @@ class VAE(nn.Module):
     
     def decode(self, z):
         x = F.relu(self.fc_dec(z))
-        x = x.view(x.size(0), 64, 8, 8)
-        x = F.relu(self.dec_conv1(x))
-        x = torch.sigmoid(self.dec_conv2(x))
+        x = x.view(x.size(0), 64, 9, 6)
+        x = self.spec_dec(x)
         return x
 
     def forward(self, x):
