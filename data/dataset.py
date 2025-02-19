@@ -12,6 +12,7 @@ DATA_PATH_NeuroV = "/home/jdariasl/Documents/Experiments/Experiments_EmiroIbarra
 DATA_PATH_SaarB = "/home/jdariasl/Documents/Experiments/Experiments_EmiroIbarra/Saarbruecken_dataset/vowel_a_resampled/"
 
 
+# /Users/julian/Documents/Bases de datos
 class Pataka_Dataset(Dataset):
     """
     Code for reading the PD datasets
@@ -110,7 +111,7 @@ class Pataka_Dataset(Dataset):
             audio, sample_rate = librosa.load(file_path, sr=SAMPLE_RATE)
             audio_len = len(audio)
             # Normalize audio
-            audio=audio/np.max(abs(audio))
+            audio = audio / np.max(abs(audio))
             indx = [i for i, x in enumerate(np.sqrt(abs(audio))) if x > 0.30]
             segments = 0
             if (indx[0] + sample_leng) < audio_len:
@@ -137,9 +138,7 @@ class Pataka_Dataset(Dataset):
                             db_group.append(self.dbs_id[data_ind])
                             segments = segments + 1
                 print(
-                    " Processed {}/{} files".format(
-                        self.speaker_ids[data_ind], len(self.paths) - 1
-                    ),
+                    " Processed {}/{} files".format(data_ind, len(self.paths) - 1),
                     end="",
                 )
                 print(
@@ -149,9 +148,7 @@ class Pataka_Dataset(Dataset):
                 )
             else:
                 print(
-                    " Processed {}/{} files".format(
-                        self.speaker_ids[data_ind], len(self.paths) - 1
-                    ),
+                    " Processed {}/{} files".format(data_ind, len(self.paths) - 1),
                     end="",
                 )
                 print(
@@ -267,7 +264,7 @@ def Read_Saarbruecken_DB(DATA_PATH_SaarB):
                 if dirname.find("healthy") != -1:
                     Label = 0
                 else:
-                    Label = 1
+                    Label = 2
                 Speaker_IDs.append(Speaker_ID)
                 Labels.append(Label)
                 Paths.append(file_path)
