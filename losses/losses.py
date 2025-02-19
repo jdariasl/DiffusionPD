@@ -3,6 +3,7 @@ import torch.nn.functional as F
 
 def vae_loss(recon_x, x, mu, logvar):
     # Reconstruction loss (Binary Cross Entropy)
+    x = torch.clip(x, min=0, max=1)
     recon_loss = F.binary_cross_entropy(recon_x, x, reduction='sum')
     
     # KL divergence loss
