@@ -110,7 +110,7 @@ class Pataka_Dataset(Dataset):
             audio, sample_rate = librosa.load(file_path, sr=SAMPLE_RATE)
             audio_len = len(audio)
             # Normalize audio
-            # audio=audio/np.max(abs(audio))
+            audio=audio/np.max(abs(audio))
             indx = [i for i, x in enumerate(np.sqrt(abs(audio))) if x > 0.30]
             segments = 0
             if (indx[0] + sample_leng) < audio_len:
