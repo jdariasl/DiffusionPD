@@ -1,5 +1,6 @@
 import torch
 import torch.nn.functional as F
+from utils.utils import forward_diffusion_sample
 
 def vae_loss(recon_x, x, mu, logvar):
     # Reconstruction loss (Binary Cross Entropy)
@@ -11,3 +12,10 @@ def vae_loss(recon_x, x, mu, logvar):
     
     # Total loss
     return recon_loss + kl_loss
+
+
+def diff_loss(model, x_0, class_label,t, sqrt_alphas_cumprod, sqrt_one_minus_alphas_cumprod, device):
+    x_noisy, noise = forward_diffusion_sample(x_0, t, sqrt_alphas_cumprod, sqrt_one_minus_alphas_cumprod, device)
+    noise_pred = model(x_noisy, class_label, t)
+    return F.l1_loss(noise, noise_pred)
+    #return F.mse_loss(noise, noise_pred)

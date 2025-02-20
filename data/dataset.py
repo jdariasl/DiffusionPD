@@ -261,9 +261,9 @@ def Read_Saarbruecken_DB(DATA_PATH_SaarB):
                 # Tone=identifiers[1]
 
                 if dirname.find("healthy") != -1:
-                    Label = 0
-                else:
                     Label = 2
+                else:
+                    Label = 3
                 Speaker_IDs.append(Speaker_ID)
                 Labels.append(Label)
                 Paths.append(file_path)
