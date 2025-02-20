@@ -36,13 +36,10 @@ class VAE(nn.Module):
         self.spec_enc = torch.nn.Sequential(
             self.enc_conv1,
             nn.ReLU(),
-            nn.BatchNorm2d(self.hidden_dims_spectrogram[0]),
             self.enc_conv2,
             nn.ReLU(),
-            torch.nn.BatchNorm2d(self.hidden_dims_spectrogram[1]),
             self.enc_conv3,
             nn.ReLU(),
-            torch.nn.BatchNorm2d(self.hidden_dims_spectrogram[2]),
         )
 
 
@@ -54,10 +51,8 @@ class VAE(nn.Module):
         self.spec_dec = torch.nn.Sequential(
             self.dec_conv1,
             nn.ReLU(),
-            nn.BatchNorm2d(self.hidden_dims_spectrogram[1]),
             self.dec_conv2,
             nn.ReLU(),
-            nn.BatchNorm2d(self.hidden_dims_spectrogram[0]),
             self.dec_conv3,
             nn.Sigmoid()
         )
