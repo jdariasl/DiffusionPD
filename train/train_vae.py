@@ -21,7 +21,7 @@ def train_vae(train_loader, test_loader, x_dim, z_dim, epochs, lr, device):
             loss.backward()
             train_loss += loss.item()
             optimizer.step()
-        print('====> Epoch: {} Average loss: {:.4f}'.format(
+        print('====> Epoch: {} Average vae loss: {:.4f}'.format(
               epoch, train_loss / len(train_loader.dataset)))
         loss_val = test_vae(test_loader, model, device)
 
