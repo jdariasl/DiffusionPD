@@ -100,7 +100,7 @@ def get_arguments():
     )
     parser.add_argument(
         "--pretrained_vae",
-        action="store_true",
+        action="store_false",
         default=True,
         help="Use pretrained VAE model",
     )
