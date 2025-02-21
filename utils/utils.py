@@ -1,6 +1,10 @@
 import torch
 from torchvision.utils import save_image
 import torch.nn.functional as F
+
+
+IMG_SIZE = [65,41]
+
 def test_vae(
     vae,
     test_loader,
@@ -21,15 +25,15 @@ def test_vae(
             if i == 0:
                 n = min(data.size(0), n_samples)
                 comparison = torch.cat([data[:n], recon_batch.view(data.size(0), 1, 65, 41)[:n]])
-                save_image(comparison.cpu(), save_path + 'comparisons.png', nrow=n)
+                save_image(comparison.cpu(), save_path + 'vae_comparisons.png', nrow=n)
                 if save_reconstructions:
-                    save_image(recon_batch.cpu(), save_path + "reconstructions.png", nrow=n)
+                    save_image(recon_batch.cpu(), save_path + "vae_reconstructions.png", nrow=n)
                 if save_latent_space:
-                    save_image(mu.cpu(), save_path + "latent_space.png", nrow=n)
+                    save_image(mu.cpu(), save_path + "vae_latent_space.png", nrow=n)
                 if save_samples:
                     z = torch.randn(n, vae.latent_dim).to(device)
                     sample = vae.decode(z).cpu()
-                    save_image(sample, save_path + "samples.png", nrow=n)
+                    save_image(sample, save_path + "vae_samples.png", nrow=n)
             else:
                 break
     return
@@ -84,3 +88,91 @@ def set_diffusion_params(T = 300):
         "posterior_variance": posterior_variance
     }
     return dict_params
+
+def get_index_from_list(vals, t, x_shape):
+    """
+    Returns a specific index t of a passed list of values vals
+    while considering the batch dimension.
+    """
+    batch_size = t.shape[0]
+    out = vals.gather(-1, t.cpu())
+    return out.reshape(batch_size, *((1,) * (len(x_shape) - 1))).to(t.device)
+
+
+@torch.no_grad()
+def sample_plot_image(model, T, device, save_path, n=10):
+    
+    #set constant diffusion parameters
+    diff_params = set_diffusion_params(T = T)
+    betas = diff_params["betas"]
+    sqrt_one_minus_alphas_cumprod = diff_params["sqrt_one_minus_alphas_cumprod"]
+    sqrt_recip_alphas = diff_params["sqrt_recip_alphas"]
+    posterior_variance = diff_params["posterior_variance"]
+    # Sample noise
+    img_size = IMG_SIZE
+    img = torch.randn((1, 1, img_size[0], img_size[1]), device=device)
+    
+    num_images = 10
+    stepsize = int(T/num_images)
+    
+    for j in range(n):
+
+        # Random class label
+        class_label = torch.randint(0, 4, (img.shape[0],)).to(img.device)
+
+        for i in range(0,T)[::-1]:
+            t = torch.full((1,), i, device=device, dtype=torch.long)
+            img = sample_timestep(model, img, t, class_label, betas, sqrt_one_minus_alphas_cumprod, sqrt_recip_alphas, posterior_variance)
+            # Edit: This is to maintain the natural range of the distribution
+            img = torch.clamp(img, -1.0, 1.0)
+            if i % stepsize == 0:
+                save_image(img.cpu(), save_path + 'diff_samples_',str(j),'.png', nrow=num_images)
+        
+    return
+
+@torch.no_grad()
+def reverse_diff(model, img, class_label, T, diff_step, device):
+    
+    #set constant diffusion parameters
+    diff_params = set_diffusion_params(T = T)
+    betas = diff_params["betas"]
+    sqrt_one_minus_alphas_cumprod = diff_params["sqrt_one_minus_alphas_cumprod"]
+    sqrt_recip_alphas = diff_params["sqrt_recip_alphas"]
+    posterior_variance = diff_params["posterior_variance"]
+    
+    for i in range(0,diff_step)[::-1]:
+        t = torch.full((1,), i, device=device, dtype=torch.long)
+        img = sample_timestep(model, img, t, class_label, betas, sqrt_one_minus_alphas_cumprod, sqrt_recip_alphas, posterior_variance)
+        # Edit: This is to maintain the natural range of the distribution
+        img = torch.clamp(img, -1.0, 1.0)
+    return img
+
+
+@torch.no_grad()
+def sample_timestep(model, x, t, class_label, betas, sqrt_one_minus_alphas_cumprod, sqrt_recip_alphas, posterior_variance):
+    """
+    Calls the model to predict the noise in the image and returns
+    the denoised image.
+    Applies noise to this image, if we are not in the last step yet.
+    """
+    betas_t = get_index_from_list(betas, t, x.shape)
+    sqrt_one_minus_alphas_cumprod_t = get_index_from_list(
+        sqrt_one_minus_alphas_cumprod, t, x.shape
+    )
+    sqrt_recip_alphas_t = get_index_from_list(sqrt_recip_alphas, t, x.shape)
+    
+    
+
+    # Call model (current image - noise prediction)
+    model_mean = sqrt_recip_alphas_t * (
+        x - betas_t * model(x, class_label ,t) / sqrt_one_minus_alphas_cumprod_t
+    )
+    posterior_variance_t = get_index_from_list(posterior_variance, t, x.shape)
+
+    if t == 0:
+        # As pointed out by Luis Pereira (see YouTube comment)
+        # The t's are offset from the t's in the paper
+        return model_mean
+    else:
+        noise = torch.randn_like(x)
+        return model_mean + torch.sqrt(posterior_variance_t) * noise

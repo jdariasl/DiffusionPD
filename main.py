@@ -2,11 +2,13 @@
 import argparse
 import torch
 from data.dataset import Pataka_Dataset
-from train.train_vae import train_vae, test_vae
+from train.train_vae import train_vae
 from train.train_diffusion import train_diffusion
 import warnings
 from models.vae import VAE
-from utils.utils import test_vae
+from utils.utils import test_vae, sample_plot_image
+from models.unet import UNet
+
 
 warnings.warn = lambda *args, **kwargs: None
 
@@ -59,7 +61,7 @@ def main():
             vae,
             test_dataset,
             device,
-            save_path="vae_samples/",
+            save_path="img_samples/",
             n_samples=10,
             save_reconstructions=False,
             save_latent_space=False,
@@ -71,7 +73,7 @@ def main():
 
         # train diffusion model
         diff_dataset = Pataka_Dataset(
-            DBs=["Gita"],
+            DBs=["Gita", "Neurovoz", "Saarbruecken"],
             train_size=0.91,
             mode="train",
             seed=SEED,
@@ -98,6 +100,18 @@ def main():
             },
             "saved_models/diffusion.pth",
         )
+
+    if args.sample_diffusion:
+        # load diffusion model
+        diffusion_model = UNet(
+            in_channels=args.inChannels, out_channels=1, num_classes=4, init_features=args.latent_dim
+        ).to(device)
+        diffusion_model.load_state_dict(
+            torch.load("saved_models/diffusion.pth", map_location=device)["model_state_dict"]
+        )
+
+        # test diffusion model
+        sample_plot_image(diffusion_model, args.diff_steps, device, "img_samples/")
     return
 
 
@@ -153,6 +167,12 @@ def get_arguments():
         action="store_false",
         default=True,
         help="Use pretrained VAE model",
+    )
+    parser.add_argument(
+        "--sample_diffusion",
+        action="store_true",
+        default=False,
+        help="test diffusion generation model",
     )
     args = parser.parse_args()
     return args
