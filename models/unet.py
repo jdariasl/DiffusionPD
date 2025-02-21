@@ -77,7 +77,7 @@ class UNet(nn.Module):
             nn.ReLU()
         )
 
-    def forward(self, x, class_label, time_step):
+    def encode(self, x, class_label, time_step):
         # One-hot encode the class label and expand dimensions to match input
         class_onehot = F.one_hot(class_label, num_classes=self.num_classes).float()
         class_onehot = class_onehot.view(class_onehot.size(0), self.num_classes)
@@ -94,6 +94,12 @@ class UNet(nn.Module):
         enc4 = self.encoder4(self.pool3(enc3), time_emb)
         
         bottleneck = self.bottleneck(self.pool4(enc4), time_emb)
+
+        return bottleneck, enc1, enc2, enc3, enc4, time_emb
+
+    def forward(self, x, class_label, time_step):
+        
+        bottleneck, enc1, enc2, enc3, enc4, time_emb = self.encode(x, class_label, time_step)
         
         dec4 = self.upconv4(bottleneck)
         dec4 = torch.cat((dec4, enc4), dim=1)
