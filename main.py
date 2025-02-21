@@ -151,8 +151,8 @@ def get_arguments():
     )
     parser.add_argument(
         "--pretrained_vae",
-        action="store_false",
-        default=True,
+        action="store_true",
+        default=False,
         help="Use pretrained VAE model",
     )
     parser.add_argument(
@@ -164,8 +164,8 @@ def get_arguments():
     )
     parser.add_argument(
         "--train_diffusion",
-        action="store_false",
-        default=True,
+        action="store_true",
+        default=False,
         help="Use pretrained VAE model",
     )
     parser.add_argument(

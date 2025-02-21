@@ -46,7 +46,7 @@ def test_diffusion(vae, time_steps, test_loader, model, diff_params, device):
             data = data.to(device)
             mu, _ = vae.encode(data)
             label = label.long().to(device)
-            t = torch.randint(0, 300, (data.shape[0],)).to(device)
+            t = torch.randint(0, 300, (1,)).to(device)#the whole batch uses the same diffusion step
             x_noisy, _ = forward_diffusion_sample(data, t, diff_params['sqrt_alphas_cumprod'], diff_params['sqrt_one_minus_alphas_cumprod'], device)
             recover_spec = reverse_diff(model, x_noisy, label, time_steps, t, device)
             label_not = (~label.bool()).long()
