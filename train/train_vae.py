@@ -10,8 +10,8 @@ def train_vae(train_loader, test_loader, x_dim, z_dim, epochs, lr, device):
     best_loss_val = 1e10
     model = VAE(x_dim, z_dim).to(device)
     optimizer = optim.Adam(model.parameters(), lr=lr)
-    model.train()
     for epoch in range(epochs):
+        model.train()
         train_loss = 0
         for batch_idx, (data, _, _, _) in enumerate(train_loader):
             data = data.to(device)
