@@ -51,8 +51,8 @@ def main():
             test_dataset,
             x_dim=args.inChannels,
             z_dim=args.latent_dim,
-            epochs=args.nEpochs,
-            lr=args.lr,
+            epochs=args.nEpochs_vae,
+            lr=args.lr_vae,
             device=device,
         )
     #test vae reconstructions quality
@@ -89,8 +89,8 @@ def main():
             test_dataset,
             x_dim=args.inChannels,
             z_dim=args.latent_dim,
-            epochs=args.nEpochs,
-            lr=args.lr,
+            epochs=args.nEpochs_diff,
+            lr=args.lr_diff,
             device=device,
         )
 
@@ -124,14 +124,18 @@ def get_arguments():
         help="load saved_model as initial model",
     )
     parser.add_argument("--batch_size", type=int, default=32)
-    parser.add_argument("--nEpochs", type=int, default=20)
+    parser.add_argument("--nEpochs_vae", type=int, default=20)
+    parser.add_argument("--nEpochs_diff", type=int, default=200)
     parser.add_argument("--device", type=int, default=0)
     parser.add_argument("--seed", type=int, default=1234)
     parser.add_argument("--inChannels", type=int, default=1)
     parser.add_argument("--latent_dim", type=int, default=32)
     parser.add_argument("--diff_steps", type=int, default=500)
     parser.add_argument(
-        "--lr", default=2e-5, type=float, help="learning rate (default: 1e-3)"
+        "--lr_vae", default=2e-5, type=float, help="learning rate for VAEdefault: 2e-5)"
+    )
+    parser.add_argument(
+        "--lr_diff", default=1e-6, type=float, help="learning rate for diffusion model (default: 1e-6)"
     )
     parser.add_argument(
         "--weight_decay", default=1e-7, type=float, help="weight decay (default: 1e-6)"
