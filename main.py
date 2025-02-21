@@ -111,7 +111,7 @@ def main():
         )
 
         # test diffusion model
-        sample_plot_image(diffusion_model, args.diff_steps, device, "img_samples/")
+        sample_plot_image(vae, diffusion_model, args.diff_steps, args.latent_dim, device, "img_samples/")
     return
 
 

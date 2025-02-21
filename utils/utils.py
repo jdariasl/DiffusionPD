@@ -3,8 +3,6 @@ from torchvision.utils import save_image
 import torch.nn.functional as F
 
 
-IMG_SIZE = [65,41]
-
 def test_vae(
     vae,
     test_loader,
@@ -100,32 +98,34 @@ def get_index_from_list(vals, t, x_shape):
 
 
 @torch.no_grad()
-def sample_plot_image(model, T, device, save_path, n=10):
-    
+def sample_plot_image(vae, model, T, latent_dim, device, save_path, n=10):
+    vae.eval()
     #set constant diffusion parameters
     diff_params = set_diffusion_params(T = T)
     betas = diff_params["betas"]
     sqrt_one_minus_alphas_cumprod = diff_params["sqrt_one_minus_alphas_cumprod"]
     sqrt_recip_alphas = diff_params["sqrt_recip_alphas"]
     posterior_variance = diff_params["posterior_variance"]
-    # Sample noise
-    img_size = IMG_SIZE
-    img = torch.randn((1, 1, img_size[0], img_size[1]), device=device)
+    
+    
     
     num_images = 10
     stepsize = int(T/num_images)
     
     for j in range(n):
+        # Sample noise
+        emb_vec = torch.randn((1, latent_dim), device=device)
 
         # Random class label
-        class_label = torch.randint(0, 4, (img.shape[0],)).to(img.device)
+        class_label = torch.randint(0, 4, (emb_vec.shape[0],)).to(emb_vec.device)
 
         for i in range(0,T)[::-1]:
             t = torch.full((1,), i, device=device, dtype=torch.long)
-            img = sample_timestep(model, img, t, class_label, betas, sqrt_one_minus_alphas_cumprod, sqrt_recip_alphas, posterior_variance)
+            emb_vec = sample_timestep(model, emb_vec, t, class_label, betas, sqrt_one_minus_alphas_cumprod, sqrt_recip_alphas, posterior_variance)
             # Edit: This is to maintain the natural range of the distribution
-            img = torch.clamp(img, -1.0, 1.0)
+            #img = torch.clamp(img, -1.0, 1.0)
             if i % stepsize == 0:
+                img = vae.decode(emb_vec)
                 save_image(img.cpu(), save_path + 'diff_samples_',str(j),'.png', nrow=num_images)
         
     return
@@ -144,7 +144,7 @@ def reverse_diff(model, img, class_label, T, diff_step, device):
         t = torch.full((1,), i, device=device, dtype=torch.long)
         img = sample_timestep(model, img, t, class_label, betas, sqrt_one_minus_alphas_cumprod, sqrt_recip_alphas, posterior_variance)
         # Edit: This is to maintain the natural range of the distribution
-        img = torch.clamp(img, -1.0, 1.0)
+        #img = torch.clamp(img, -1.0, 1.0)
     return img
 
 
