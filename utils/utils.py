@@ -126,7 +126,7 @@ def sample_plot_image(vae, model, T, latent_dim, device, save_path, n=10):
             #img = torch.clamp(img, -1.0, 1.0)
             if i % stepsize == 0:
                 img = vae.decode(emb_vec)
-                save_image(img.cpu(), save_path + 'diff_samples_',str(j),'.png', nrow=num_images)
+                save_image(img.cpu(), save_path + 'diff_samples_' + str(j) +'.png', nrow=num_images)
         
     return
 
