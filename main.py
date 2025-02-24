@@ -6,9 +6,9 @@ from train.train_vae import train_vae
 from train.train_diffusion import train_diffusion
 import warnings
 from models.vae import VAE
-from utils.utils import test_vae, sample_plot_image
+from utils.utils import test_vae, sample_plot_image, eval_class_pred_diff
 from models.unet import UNet
-
+from sklearn.metrics import classification_report
 
 warnings.warn = lambda *args, **kwargs: None
 
@@ -93,6 +93,7 @@ def main():
             z_dim=args.latent_dim,
             epochs=args.nEpochs_diff,
             lr=args.lr_diff,
+            pred_diff_time=args.pred_diff_time,
             device=device,
         )
 
@@ -114,6 +115,21 @@ def main():
 
         # test diffusion model
         sample_plot_image(vae, diffusion_model, args.diff_steps, args.latent_dim, device, "img_samples/")
+    
+    if args.eval_classpred:
+       # load diffusion model  
+        diffusion_model = UNet(
+            in_channels=args.inChannels, out_channels=1, num_classes=4, init_features=args.latent_dim
+        ).to(device)
+        diffusion_model.load_state_dict(
+            torch.load("saved_models/diffusion.pth", map_location=device)["model_state_dict"]
+        )
+        true_labels, pred_labels, true_labels_speaker, pred_labels_speaker= eval_class_pred_diff(test_dataset, vae, diffusion_model, args.diff_steps, device, pred_T=args.pred_diff_time)
+        print('Frame-based Classification report:')
+        print(classification_report(true_labels.detach().cpu(), pred_labels.detach().cpu()))
+        print('Patient-based Classification report:')
+        print(classification_report(true_labels_speaker.detach().cpu(), pred_labels_speaker.detach().cpu()))
+
     return
 
 
@@ -180,6 +196,13 @@ def get_arguments():
         default=False,
         help="test diffusion generation model",
     )
+    parser.add_argument(
+        "--eval_classpred",
+        action="store_true",
+        default=False,
+        help="evaluate class prediction from diffusion model",
+    )
+    parser.add_argument("--pred_diff_time", type=int, default=50)
     args = parser.parse_args()
     return args
 

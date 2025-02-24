@@ -6,7 +6,7 @@ from losses.losses import diff_loss
 from utils.utils import forward_diffusion_sample, reverse_diff
 from torch.optim.lr_scheduler import ExponentialLR
 
-def train_diffusion(vae, time_steps, train_loader, test_loader, x_dim, z_dim, epochs, lr, device):
+def train_diffusion(vae, time_steps, train_loader, test_loader, x_dim, z_dim, epochs, lr, pred_diff_time, device):
     #best_loss_val = 1e10
     
     #backbone model
@@ -37,12 +37,12 @@ def train_diffusion(vae, time_steps, train_loader, test_loader, x_dim, z_dim, ep
         print('====> Epoch: {} Average diff loss: {:.4f}'.format(
               epoch, train_loss / len(train_loader.dataset)))
         
-        test_diffusion(vae, time_steps, test_loader, model, diff_params, device)
+        test_diffusion(vae, time_steps, test_loader, model, diff_params, device, pred_diff_time)
         scheduler.step()
     return model
 
 
-def test_diffusion(vae, time_steps, test_loader, model, diff_params, device):
+def test_diffusion(vae, time_steps, test_loader, model, diff_params, device, T_pred=50):
     model.eval()
     test_loss = 0
     with torch.no_grad():
@@ -50,13 +50,13 @@ def test_diffusion(vae, time_steps, test_loader, model, diff_params, device):
             data = data.to(device)
             mu, _ = vae.encode(data)
             label = label.long().to(device)
-            t = 50*torch.ones(mu.shape[0],dtype=torch.int64).to(device)#torch.randint(0, 300, (1,)).to(device)#the whole batch uses the same diffusion step
+            t = T_pred*torch.ones(mu.shape[0],dtype=torch.int64).to(device)#torch.randint(0, 300, (1,)).to(device)#the whole batch uses the same diffusion step
             x_noisy, _ = forward_diffusion_sample(mu, t, diff_params['sqrt_alphas_cumprod'], diff_params['sqrt_one_minus_alphas_cumprod'], device)
             recover_spec = reverse_diff(model, x_noisy, label, time_steps, t[0], device)
             label_not = (~label.bool()).long()
             recover_spec_not = reverse_diff(model, x_noisy, label_not, time_steps, t[0], device)
 
-            loss = torch.mean(torch.abs(recover_spec - mu) - torch.abs(recover_spec_not - mu))
+            loss = torch.mean(torch.mean(torch.abs(recover_spec - mu), axis=1) - torch.mean(torch.abs(recover_spec_not - mu), axis=1))
             test_loss += loss.item()
 
     test_loss /= len(test_loader.dataset)
