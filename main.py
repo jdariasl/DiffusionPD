@@ -70,17 +70,19 @@ def main():
 
     #train diffusion model
     if args.train_diffusion:
-
-        # train diffusion model
-        diff_dataset = Pataka_Dataset(
-            DBs=["Gita", "Neurovoz", "Saarbruecken"],
-            train_size=0.91,
-            mode="train",
-            seed=SEED,
-        )
-        diff_dataset = torch.utils.data.DataLoader(
-            diff_dataset, batch_size=args.batch_size, shuffle=True
-        )
+        if ~args.pretrained_vae:
+            diff_dataset = vae_dataset
+        else:
+            # train diffusion model
+            diff_dataset = Pataka_Dataset(
+                DBs=["Gita", "Neurovoz", "Saarbruecken"],
+                train_size=0.91,
+                mode="train",
+                seed=SEED,
+            )
+            diff_dataset = torch.utils.data.DataLoader(
+                diff_dataset, batch_size=args.batch_size, shuffle=True
+            )
 
         diffusion_model = train_diffusion(
             vae,
