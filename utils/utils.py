@@ -2,7 +2,6 @@ import torch
 from torchvision.utils import save_image
 import torch.nn.functional as F
 
-
 def test_vae(
     vae,
     test_loader,
@@ -176,3 +175,48 @@ def sample_timestep(model, x, t, class_label, betas, sqrt_one_minus_alphas_cumpr
     else:
         noise = torch.randn_like(x)
         return model_mean + torch.sqrt(posterior_variance_t) * noise
+    
+@torch.no_grad()
+def eval_class_pred_diff(test_loader, vae, model, T, device, pred_T=50):
+    vae.eval()
+    model.eval()
+
+    pred_labels = []
+    true_labels = []
+    speakers = []
+    scores = []
+    with torch.no_grad():
+        for i, (data, label, speaker_id, _) in enumerate(test_loader):
+            
+            diff_params = set_diffusion_params(T = T)
+            speakers.append(speaker_id)
+            data = data.to(device)
+            mu, _ = vae.encode(data)
+            true_labels.append(label)
+            label = torch.ones(mu.shape[0],dtype=torch.int64).to(device)
+            t = pred_T*torch.ones(mu.shape[0],dtype=torch.int64).to(device)
+            x_noisy, _ = forward_diffusion_sample(mu, t, diff_params['sqrt_alphas_cumprod'], diff_params['sqrt_one_minus_alphas_cumprod'], device)
+            recover_spec = reverse_diff(model, x_noisy, label, T, t[0], device)
+            label_not = (~label.bool()).long()
+            recover_spec_not = reverse_diff(model, x_noisy, label_not, T, t[0], device)
+            
+            pred_score = torch.mean(torch.abs(recover_spec - mu),axis=1) - torch.mean(torch.abs(recover_spec_not - mu),axis=1)
+            scores.append(pred_score)
+            pred_labels.append((pred_score > 0).long())
+    true_labels = torch.cat(true_labels)
+    pred_labels = torch.cat(pred_labels)
+    speakers = torch.cat(speakers)
+    scores = torch.cat(scores)
+    n_speakers = torch.unique(speakers)
+    pred_labels_speaker = []
+    true_labels_speaker = []
+    scores_speaker = []
+    for i, speaker in enumerate(n_speakers):
+        idx = speakers == speaker
+        scores_speaker.append(torch.mean(scores[idx]))
+        true_labels_speaker.append(true_labels[idx][0])
+        pred_labels_speaker.append((scores_speaker[i] > 0).long())
+    true_labels_speaker = torch.stack(true_labels_speaker)
+    pred_labels_speaker = torch.stack(pred_labels_speaker)
+
+    return true_labels, pred_labels, true_labels_speaker, pred_labels_speaker
