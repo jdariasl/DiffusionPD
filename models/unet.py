@@ -33,7 +33,18 @@ class UNetBlock(nn.Module):
         self.time_emb = nn.Linear(time_emb_dim, out_channels)
         self.class_embeb = nn.Linear(class_embeb_dim, out_channels)
 
+        self.residual = nn.Sequential()
+        if in_channels != out_channels:
+            # If the number of channels is different, we need to adjust the residual connection
+            # to match the output of the block.
+            # This is done by applying a 1x1 convolution to the input.
+            self.residual = nn.Sequential(
+                nn.Conv1d(in_channels, out_channels, kernel_size=1, bias=False),
+                nn.BatchNorm1d(out_channels),
+            )
+
     def forward(self, x, class_embeb, time_emb):
+        identity = self.residual(x)
         time_emb = self.time_emb(time_emb).unsqueeze(2).repeat(1, 1, x.size(2))
         class_embeb = self.class_embeb(class_embeb).unsqueeze(2).repeat(1, 1, x.size(2))
         x1 = self.conv1(x)
@@ -42,7 +53,8 @@ class UNetBlock(nn.Module):
         x1 = self.conv2(x1)
         x1 = self.bn2(x1)
         x1 = F.silu(x1)
-        return x1 + x
+        x1 += identity
+        return x1
 
 
 class UNet(nn.Module):
