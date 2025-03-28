@@ -59,9 +59,7 @@ class UNet(nn.Module):
         self.num_classes = num_classes
         self.time_emb_dim = time_emb_dim
         features = init_features
-        self.encoder1 = UNetBlock(
-            in_channels + 1, features, init_features, time_emb_dim
-        )
+        self.encoder1 = UNetBlock(in_channels, features, init_features, time_emb_dim)
         self.pool1 = nn.MaxPool1d(kernel_size=2, stride=2)
         self.encoder2 = UNetBlock(features, features * 2, init_features, time_emb_dim)
         self.pool2 = nn.MaxPool1d(kernel_size=2, stride=2)
