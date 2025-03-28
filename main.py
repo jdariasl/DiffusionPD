@@ -33,7 +33,9 @@ def main():
     if args.pretrained_vae:
         # load pretrained VAE model
         vae = VAE(args.inChannels, z_dim=args.latent_dim).to(device)
-        vae.load_state_dict(torch.load(args.vae_path, map_location=device)["model_state_dict"])
+        vae.load_state_dict(
+            torch.load(args.vae_path, map_location=device)["model_state_dict"]
+        )
     else:
         # train VAE from scratch
         vae_dataset = Pataka_Dataset(
@@ -55,7 +57,7 @@ def main():
             lr=args.lr_vae,
             device=device,
         )
-    #test vae reconstructions quality
+    # test vae reconstructions quality
     if args.test_vae:
         test_vae(
             vae,
@@ -68,9 +70,9 @@ def main():
             save_samples=False,
         )
 
-    #train diffusion model
+    # train diffusion model
     if args.train_diffusion:
-        if ~args.pretrained_vae:
+        if not args.pretrained_vae:
             diff_dataset = vae_dataset
         else:
             # train diffusion model
@@ -107,28 +109,62 @@ def main():
     if args.sample_diffusion:
         # load diffusion model
         diffusion_model = UNet(
-            in_channels=args.inChannels, out_channels=1, num_classes=4, init_features=args.latent_dim
+            in_channels=args.inChannels,
+            out_channels=1,
+            num_classes=4,
+            init_features=args.latent_dim,
         ).to(device)
         diffusion_model.load_state_dict(
-            torch.load("saved_models/diffusion.pth", map_location=device)["model_state_dict"]
+            torch.load("saved_models/diffusion.pth", map_location=device)[
+                "model_state_dict"
+            ]
         )
 
         # test diffusion model
-        sample_plot_image(vae, diffusion_model, args.diff_steps, args.latent_dim, device, "img_samples/")
-    
+        sample_plot_image(
+            vae,
+            diffusion_model,
+            args.diff_steps,
+            args.latent_dim,
+            device,
+            "img_samples/",
+        )
+
     if args.eval_classpred:
-       # load diffusion model  
+        # load diffusion model
         diffusion_model = UNet(
-            in_channels=args.inChannels, out_channels=1, num_classes=4, init_features=args.latent_dim
+            in_channels=args.inChannels,
+            out_channels=1,
+            num_classes=4,
+            init_features=args.latent_dim,
         ).to(device)
         diffusion_model.load_state_dict(
-            torch.load("saved_models/diffusion.pth", map_location=device)["model_state_dict"]
+            torch.load("saved_models/diffusion.pth", map_location=device)[
+                "model_state_dict"
+            ]
         )
-        true_labels, pred_labels, true_labels_speaker, pred_labels_speaker= eval_class_pred_diff(test_dataset, vae, diffusion_model, args.diff_steps, device, pred_T=args.pred_diff_time)
-        print('Frame-based Classification report:')
-        print(classification_report(true_labels.detach().cpu(), pred_labels.detach().cpu()))
-        print('Patient-based Classification report:')
-        print(classification_report(true_labels_speaker.detach().cpu(), pred_labels_speaker.detach().cpu()))
+        true_labels, pred_labels, true_labels_speaker, pred_labels_speaker = (
+            eval_class_pred_diff(
+                test_dataset,
+                vae,
+                diffusion_model,
+                args.diff_steps,
+                device,
+                pred_T=args.pred_diff_time,
+            )
+        )
+        print("Frame-based Classification report:")
+        print(
+            classification_report(
+                true_labels.detach().cpu(), pred_labels.detach().cpu()
+            )
+        )
+        print("Patient-based Classification report:")
+        print(
+            classification_report(
+                true_labels_speaker.detach().cpu(), pred_labels_speaker.detach().cpu()
+            )
+        )
 
     return
 
@@ -153,7 +189,10 @@ def get_arguments():
         "--lr_vae", default=2e-5, type=float, help="learning rate for VAEdefault: 2e-5)"
     )
     parser.add_argument(
-        "--lr_diff", default=1e-6, type=float, help="learning rate for diffusion model (default: 1e-6)"
+        "--lr_diff",
+        default=1e-6,
+        type=float,
+        help="learning rate for diffusion model (default: 1e-6)",
     )
     parser.add_argument(
         "--weight_decay", default=1e-7, type=float, help="weight decay (default: 1e-6)"
