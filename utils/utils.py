@@ -2,6 +2,7 @@ import torch
 from torchvision.utils import save_image
 import torch.nn.functional as F
 
+
 def test_vae(
     vae,
     test_loader,
@@ -10,7 +11,7 @@ def test_vae(
     n_samples=10,
     save_reconstructions=False,
     save_latent_space=False,
-    save_samples = False
+    save_samples=False,
 ):
     print(save_path)
     vae.eval()
@@ -21,10 +22,14 @@ def test_vae(
             recon_batch = vae.decode(mu)
             if i == 0:
                 n = min(data.size(0), n_samples)
-                comparison = torch.cat([data[:n], recon_batch.view(data.size(0), 1, 65, 41)[:n]])
-                save_image(comparison.cpu(), save_path + 'vae_comparisons.png', nrow=n)
+                comparison = torch.cat(
+                    [data[:n], recon_batch.view(data.size(0), 1, 65, 41)[:n]]
+                )
+                save_image(comparison.cpu(), save_path + "vae_comparisons.png", nrow=n)
                 if save_reconstructions:
-                    save_image(recon_batch.cpu(), save_path + "vae_reconstructions.png", nrow=n)
+                    save_image(
+                        recon_batch.cpu(), save_path + "vae_reconstructions.png", nrow=n
+                    )
                 if save_latent_space:
                     save_image(mu.cpu(), save_path + "vae_latent_space.png", nrow=n)
                 if save_samples:
@@ -35,8 +40,10 @@ def test_vae(
                 break
     return
 
+
 def linear_beta_schedule(timesteps, start=0.0001, end=0.02):
     return torch.linspace(start, end, timesteps)
+
 
 def get_index_from_list(vals, t, x_shape, device="cpu"):
     """
@@ -47,7 +54,10 @@ def get_index_from_list(vals, t, x_shape, device="cpu"):
     out = vals.gather(-1, t.cpu())
     return out.reshape(batch_size, *((1,) * (len(x_shape) - 1))).to(device)
 
-def forward_diffusion_sample(x_0, t, sqrt_alphas_cumprod, sqrt_one_minus_alphas_cumprod, device="cpu"):
+
+def forward_diffusion_sample(
+    x_0, t, sqrt_alphas_cumprod, sqrt_one_minus_alphas_cumprod, device="cpu"
+):
     """
     Takes an image and a timestep as input and
     returns the noisy version of it
@@ -58,21 +68,23 @@ def forward_diffusion_sample(x_0, t, sqrt_alphas_cumprod, sqrt_one_minus_alphas_
         sqrt_one_minus_alphas_cumprod, t, x_0.shape
     )
     # mean + variance
-    return sqrt_alphas_cumprod_t.to(device) * x_0.to(device) \
-    + sqrt_one_minus_alphas_cumprod_t.to(device) * noise.to(device), noise.to(device)
+    return sqrt_alphas_cumprod_t.to(device) * x_0.to(
+        device
+    ) + sqrt_one_minus_alphas_cumprod_t.to(device) * noise.to(device), noise.to(device)
 
-def set_diffusion_params(T = 300):
-  
+
+def set_diffusion_params(T=300):
+
     betas = linear_beta_schedule(timesteps=T)
 
     # Pre-calculate different terms for closed form
-    alphas = 1. - betas
+    alphas = 1.0 - betas
     alphas_cumprod = torch.cumprod(alphas, axis=0)
     alphas_cumprod_prev = F.pad(alphas_cumprod[:-1], (1, 0), value=1.0)
     sqrt_recip_alphas = torch.sqrt(1.0 / alphas)
     sqrt_alphas_cumprod = torch.sqrt(alphas_cumprod)
-    sqrt_one_minus_alphas_cumprod = torch.sqrt(1. - alphas_cumprod)
-    posterior_variance = betas * (1. - alphas_cumprod_prev) / (1. - alphas_cumprod)
+    sqrt_one_minus_alphas_cumprod = torch.sqrt(1.0 - alphas_cumprod)
+    posterior_variance = betas * (1.0 - alphas_cumprod_prev) / (1.0 - alphas_cumprod)
 
     dict_params = {
         "betas": betas,
@@ -82,9 +94,10 @@ def set_diffusion_params(T = 300):
         "sqrt_recip_alphas": sqrt_recip_alphas,
         "sqrt_alphas_cumprod": sqrt_alphas_cumprod,
         "sqrt_one_minus_alphas_cumprod": sqrt_one_minus_alphas_cumprod,
-        "posterior_variance": posterior_variance
+        "posterior_variance": posterior_variance,
     }
     return dict_params
+
 
 def get_index_from_list(vals, t, x_shape):
     """
@@ -99,18 +112,16 @@ def get_index_from_list(vals, t, x_shape):
 @torch.no_grad()
 def sample_plot_image(vae, model, T, latent_dim, device, save_path, n=10):
     vae.eval()
-    #set constant diffusion parameters
-    diff_params = set_diffusion_params(T = T)
+    # set constant diffusion parameters
+    diff_params = set_diffusion_params(T=T)
     betas = diff_params["betas"]
     sqrt_one_minus_alphas_cumprod = diff_params["sqrt_one_minus_alphas_cumprod"]
     sqrt_recip_alphas = diff_params["sqrt_recip_alphas"]
     posterior_variance = diff_params["posterior_variance"]
-    
-    
-    
+
     num_images = 10
-    stepsize = int(T/num_images)
-    
+    stepsize = int(T / num_images)
+
     for j in range(n):
         # Sample noise
         emb_vec = torch.randn((1, latent_dim), device=device)
@@ -118,37 +129,69 @@ def sample_plot_image(vae, model, T, latent_dim, device, save_path, n=10):
         # Random class label
         class_label = torch.randint(0, 4, (emb_vec.shape[0],)).to(emb_vec.device)
 
-        for i in range(0,T)[::-1]:
+        for i in range(0, T)[::-1]:
             t = torch.full((1,), i, device=device, dtype=torch.long)
-            emb_vec = sample_timestep(model, emb_vec, t, class_label, betas, sqrt_one_minus_alphas_cumprod, sqrt_recip_alphas, posterior_variance)
+            emb_vec = sample_timestep(
+                model,
+                emb_vec,
+                t,
+                class_label,
+                betas,
+                sqrt_one_minus_alphas_cumprod,
+                sqrt_recip_alphas,
+                posterior_variance,
+            )
             # Edit: This is to maintain the natural range of the distribution
-            #img = torch.clamp(img, -1.0, 1.0)
+            # img = torch.clamp(img, -1.0, 1.0)
             if i % stepsize == 0:
                 img = vae.decode(emb_vec)
-                save_image(img.cpu(), save_path + 'diff_samples_' + str(j) +'.png', nrow=num_images)
-        
+                save_image(
+                    img.cpu(),
+                    save_path + "diff_samples_" + str(j) + ".png",
+                    nrow=num_images,
+                )
+
     return
+
 
 @torch.no_grad()
 def reverse_diff(model, img, class_label, T, diff_step, device):
-    
-    #set constant diffusion parameters
-    diff_params = set_diffusion_params(T = T)
+
+    # set constant diffusion parameters
+    diff_params = set_diffusion_params(T=T)
     betas = diff_params["betas"]
     sqrt_one_minus_alphas_cumprod = diff_params["sqrt_one_minus_alphas_cumprod"]
     sqrt_recip_alphas = diff_params["sqrt_recip_alphas"]
     posterior_variance = diff_params["posterior_variance"]
-    
-    for i in range(0,diff_step)[::-1]:
+
+    for i in range(0, diff_step)[::-1]:
         t = torch.full((1,), i, device=device, dtype=torch.long)
-        img = sample_timestep(model, img, t, class_label, betas, sqrt_one_minus_alphas_cumprod, sqrt_recip_alphas, posterior_variance)
+        img = sample_timestep(
+            model,
+            img,
+            t,
+            class_label,
+            betas,
+            sqrt_one_minus_alphas_cumprod,
+            sqrt_recip_alphas,
+            posterior_variance,
+        )
         # Edit: This is to maintain the natural range of the distribution
-        #img = torch.clamp(img, -1.0, 1.0)
+        # img = torch.clamp(img, -1.0, 1.0)
     return img
 
 
 @torch.no_grad()
-def sample_timestep(model, x, t, class_label, betas, sqrt_one_minus_alphas_cumprod, sqrt_recip_alphas, posterior_variance):
+def sample_timestep(
+    model,
+    x,
+    t,
+    class_label,
+    betas,
+    sqrt_one_minus_alphas_cumprod,
+    sqrt_recip_alphas,
+    posterior_variance,
+):
     """
     Calls the model to predict the noise in the image and returns
     the denoised image.
@@ -159,12 +202,10 @@ def sample_timestep(model, x, t, class_label, betas, sqrt_one_minus_alphas_cumpr
         sqrt_one_minus_alphas_cumprod, t, x.shape
     )
     sqrt_recip_alphas_t = get_index_from_list(sqrt_recip_alphas, t, x.shape)
-    
-    
 
     # Call model (current image - noise prediction)
     model_mean = sqrt_recip_alphas_t * (
-        x - betas_t * model(x, class_label ,t) / sqrt_one_minus_alphas_cumprod_t
+        x - betas_t * model(x, class_label, t) / sqrt_one_minus_alphas_cumprod_t
     )
     posterior_variance_t = get_index_from_list(posterior_variance, t, x.shape)
 
@@ -175,7 +216,8 @@ def sample_timestep(model, x, t, class_label, betas, sqrt_one_minus_alphas_cumpr
     else:
         noise = torch.randn_like(x)
         return model_mean + torch.sqrt(posterior_variance_t) * noise
-    
+
+
 @torch.no_grad()
 def eval_class_pred_diff(test_loader, vae, model, T, device, pred_T=50):
     vae.eval()
@@ -187,20 +229,29 @@ def eval_class_pred_diff(test_loader, vae, model, T, device, pred_T=50):
     scores = []
     with torch.no_grad():
         for i, (data, label, speaker_id, _) in enumerate(test_loader):
-            
-            diff_params = set_diffusion_params(T = T)
+
+            diff_params = set_diffusion_params(T=T)
             speakers.append(speaker_id)
             data = data.to(device)
             mu, _ = vae.encode(data)
             true_labels.append(label)
-            label = torch.ones(mu.shape[0],dtype=torch.int64).to(device)
-            t = pred_T*torch.ones(mu.shape[0],dtype=torch.int64).to(device)
-            x_noisy, _ = forward_diffusion_sample(mu, t, diff_params['sqrt_alphas_cumprod'], diff_params['sqrt_one_minus_alphas_cumprod'], device)
+            label = torch.ones(mu.shape[0], dtype=torch.int64).to(device)
+            t = pred_T * torch.ones(mu.shape[0], dtype=torch.int64).to(device)
+            x_noisy, _ = forward_diffusion_sample(
+                mu,
+                t,
+                diff_params["sqrt_alphas_cumprod"],
+                diff_params["sqrt_one_minus_alphas_cumprod"],
+                device,
+            )
             recover_spec = reverse_diff(model, x_noisy, label, T, t[0], device)
             label_not = (~label.bool()).long()
             recover_spec_not = reverse_diff(model, x_noisy, label_not, T, t[0], device)
-            
-            pred_score = torch.mean(torch.abs(recover_spec - mu),axis=1) - torch.mean(torch.abs(recover_spec_not - mu),axis=1)
+
+            pred_score = -1 * (
+                torch.mean(torch.abs(recover_spec - mu), axis=1)
+                - torch.mean(torch.abs(recover_spec_not - mu), axis=1)
+            )
             scores.append(pred_score)
             pred_labels.append((pred_score > 0).long())
     true_labels = torch.cat(true_labels)
