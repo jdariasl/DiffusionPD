@@ -35,7 +35,7 @@ def main():
         # load pretrained VAE model
         vae = VAE(
             args["model_parameters"]["in_channels"],
-            z_dim=args["model_parameters"]["in_channels"],
+            z_dim=args["model_parameters"]["latent_dim"],
         ).to(device)
         vae.load_state_dict(
             torch.load(args["paths"]["vae_model_path"], map_location=device)[
