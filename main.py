@@ -1,12 +1,11 @@
 #!/usr/bin/env python -W ignore::DeprecationWarning
-import argparse
 import torch
 from data.dataset import Pataka_Dataset
 from train.train_vae import train_vae
 from train.train_diffusion import train_diffusion
 import warnings
 from models.vae import VAE
-from utils.utils import test_vae, sample_plot_image, eval_class_pred_diff
+from utils.utils import test_vae, sample_plot_image, eval_class_pred_diff, read_config
 from models.unet import UNet
 from sklearn.metrics import classification_report
 
@@ -14,9 +13,9 @@ warnings.warn = lambda *args, **kwargs: None
 
 
 def main():
-    args = get_arguments()
-    SEED = args.seed
-    if args.device:
+    args = read_config("config/Configuration.json")
+    SEED = args["optimization_parameters"]["seed"]
+    if args["optimization_parameters"]["device"]:
         device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     else:
         device = torch.device("cpu")
@@ -27,14 +26,21 @@ def main():
         DBs=["Gita", "Neurovoz"], train_size=0.91, mode="test", seed=SEED
     )
     test_dataset = torch.utils.data.DataLoader(
-        test_dataset, batch_size=args.batch_size, shuffle=True
+        test_dataset,
+        batch_size=args["optimization_parameters"]["batch_size"],
+        shuffle=True,
     )
 
     if args.pretrained_vae:
         # load pretrained VAE model
-        vae = VAE(args.inChannels, z_dim=args.latent_dim).to(device)
+        vae = VAE(
+            args["model_parameters"]["in_channels"],
+            z_dim=args["model_parameters"]["in_channels"],
+        ).to(device)
         vae.load_state_dict(
-            torch.load(args.vae_path, map_location=device)["model_state_dict"]
+            torch.load(args["paths"]["vae_model_path"], map_location=device)[
+                "model_state_dict"
+            ]
         )
     else:
         # train VAE from scratch
@@ -45,16 +51,18 @@ def main():
             seed=SEED,
         )
         vae_dataset = torch.utils.data.DataLoader(
-            vae_dataset, batch_size=args.batch_size, shuffle=True
+            vae_dataset,
+            batch_size=args["optimization_parameters"]["batch_size"],
+            shuffle=True,
         )
 
         vae = train_vae(
             vae_dataset,
             test_dataset,
-            x_dim=args.inChannels,
-            z_dim=args.latent_dim,
-            epochs=args.nEpochs_vae,
-            lr=args.lr_vae,
+            x_dim=args["model_parameters"]["in_channels"],
+            z_dim=args["model_parameters"]["latent_dim"],
+            epochs=args["optimization_parameters"]["num_epochs_vae"],
+            lr=args["optimization_parameters"]["learning_rate_vae"],
             device=device,
         )
     # test vae reconstructions quality
@@ -83,19 +91,21 @@ def main():
                 seed=SEED,
             )
             diff_dataset = torch.utils.data.DataLoader(
-                diff_dataset, batch_size=args.batch_size, shuffle=True
+                diff_dataset,
+                batch_size=args["optimization_parameters"]["batch_size"],
+                shuffle=True,
             )
 
         diffusion_model = train_diffusion(
             vae,
-            args.diff_steps,
+            args["model_parameters"]["diffusion_steps"],
             diff_dataset,
             test_dataset,
-            x_dim=args.inChannels,
-            z_dim=args.latent_dim,
-            epochs=args.nEpochs_diff,
-            lr=args.lr_diff,
-            pred_diff_time=args.pred_diff_time,
+            x_dim=args["model_parameters"]["in_channels"],
+            z_dim=args["model_parameters"]["latent_dim"],
+            epochs=args["optimization_parameters"]["num_epochs_diff"],
+            lr=args["optimization_parameters"]["learning_rate_diff"],
+            pred_diff_time=args["model_parameters"]["pred_diff_time"],
             device=device,
         )
 
@@ -109,10 +119,10 @@ def main():
     if args.sample_diffusion:
         # load diffusion model
         diffusion_model = UNet(
-            in_channels=args.inChannels,
+            in_channels=args["model_parameters"]["in_channels"],
             out_channels=1,
             num_classes=4,
-            init_features=args.latent_dim,
+            init_features=args["model_parameters"]["latent_dim"],
         ).to(device)
         diffusion_model.load_state_dict(
             torch.load("saved_models/diffusion.pth", map_location=device)[
@@ -124,8 +134,8 @@ def main():
         sample_plot_image(
             vae,
             diffusion_model,
-            args.diff_steps,
-            args.latent_dim,
+            args["model_parameters"]["diffusion_steps"],
+            args["model_parameters"]["latent_dim"],
             device,
             "img_samples/",
         )
@@ -133,10 +143,10 @@ def main():
     if args.eval_classpred:
         # load diffusion model
         diffusion_model = UNet(
-            in_channels=args.inChannels,
+            in_channels=args["model_parameters"]["in_channels"],
             out_channels=1,
             num_classes=4,
-            init_features=args.latent_dim,
+            init_features=args["model_parameters"]["latent_dim"],
         ).to(device)
         diffusion_model.load_state_dict(
             torch.load("saved_models/diffusion.pth", map_location=device)[
@@ -148,9 +158,9 @@ def main():
                 test_dataset,
                 vae,
                 diffusion_model,
-                args.diff_steps,
+                args["model_parameters"]["diffusion_steps"],
                 device,
-                pred_T=args.pred_diff_time,
+                pred_T=args["model_parameters"]["pred_diff_time"],
             )
         )
         print("Frame-based Classification report:")
@@ -167,83 +177,6 @@ def main():
         )
 
     return
-
-
-def get_arguments():
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--new_training",
-        action="store_true",
-        default=False,
-        help="load saved_model as initial model",
-    )
-    parser.add_argument("--batch_size", type=int, default=32)
-    parser.add_argument("--nEpochs_vae", type=int, default=20)
-    parser.add_argument("--nEpochs_diff", type=int, default=200)
-    parser.add_argument("--device", type=int, default=0)
-    parser.add_argument("--seed", type=int, default=1234)
-    parser.add_argument("--inChannels", type=int, default=1)
-    parser.add_argument("--latent_dim", type=int, default=32)
-    parser.add_argument("--diff_steps", type=int, default=500)
-    parser.add_argument(
-        "--lr_vae", default=2e-5, type=float, help="learning rate for VAEdefault: 2e-5)"
-    )
-    parser.add_argument(
-        "--lr_diff",
-        default=1e-6,
-        type=float,
-        help="learning rate for diffusion model (default: 1e-6)",
-    )
-    parser.add_argument(
-        "--weight_decay", default=1e-7, type=float, help="weight decay (default: 1e-6)"
-    )
-    parser.add_argument(
-        "--resume",
-        default="",
-        type=str,
-        metavar="PATH",
-        help="path to latest checkpoint (default: none)",
-    )
-    parser.add_argument(
-        "--test_vae",
-        action="store_true",
-        default=False,
-        help="test vae reconstruction",
-    )
-    parser.add_argument(
-        "--pretrained_vae",
-        action="store_true",
-        default=False,
-        help="Use pretrained VAE model",
-    )
-    parser.add_argument(
-        "--vae_path",
-        default="saved_models/vae_multilingual_Gita_Neurovoz.pth",
-        type=str,
-        metavar="PATH",
-        help="path to pretrained vae model",
-    )
-    parser.add_argument(
-        "--train_diffusion",
-        action="store_true",
-        default=False,
-        help="Use pretrained VAE model",
-    )
-    parser.add_argument(
-        "--sample_diffusion",
-        action="store_true",
-        default=False,
-        help="test diffusion generation model",
-    )
-    parser.add_argument(
-        "--eval_classpred",
-        action="store_true",
-        default=False,
-        help="evaluate class prediction from diffusion model",
-    )
-    parser.add_argument("--pred_diff_time", type=int, default=50)
-    args = parser.parse_args()
-    return args
 
 
 if __name__ == "__main__":

@@ -1,0 +1,32 @@
+{
+  "model_parameters": {
+    "in_channels": 1,
+    "diffusion_steps": 500,
+    "latent_dim": 128,
+    "pred_diff_time": 50
+  },
+  "optimization_parameters": {
+    "batch_size": 32,
+    "num_epochs_vae": 20,
+    "num_epochs_diff": 200,
+    "device": 1,
+    "seed": 1234,
+    "learning_rate_vae": 2e-5,
+    "learning_rate_diff": 1e-6,
+    "weight_decay": 0.1e-7
+  },
+  "flags": {
+    "resume_training": false,
+    "train_vae": false,
+    "test_vae": false,
+    "train_diffusion_model": false,
+    "sample_diffusion": false,
+    "eval_classpred": false
+  },
+  "paths": {
+    "vae_model_path": "saved_models/vae.pth",
+    "diffusion_model_path": "saved_models/diffusion.pth"
+  }
+}
+
+

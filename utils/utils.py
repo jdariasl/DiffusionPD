@@ -1,6 +1,22 @@
 import torch
 from torchvision.utils import save_image
 import torch.nn.functional as F
+import json
+
+
+def read_config(file_path):
+    """
+    Reads the JSON configuration file and returns the parsed dictionary.
+
+    Args:
+        file_path (str): Path to the JSON configuration file.
+
+    Returns:
+        dict: Parsed configuration dictionary.
+    """
+    with open(file_path, "r") as file:
+        config = json.load(file)
+    return config
 
 
 def test_vae(
