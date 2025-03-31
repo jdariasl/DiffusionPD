@@ -80,7 +80,7 @@ def main():
 
     # train diffusion model
     if args["flags"]["train_diffusion"]:
-        if not args.pretrained_vae:
+        if args["flags"]["train_vae"]:
             diff_dataset = vae_dataset
         else:
             # train diffusion model
