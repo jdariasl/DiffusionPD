@@ -175,3 +175,6 @@ cython_debug/
 
 #pytorch_models
 *.pth
+
+#Local config file
+*.json
