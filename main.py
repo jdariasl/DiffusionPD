@@ -31,7 +31,7 @@ def main():
         shuffle=True,
     )
 
-    if args.pretrained_vae:
+    if not args["flags"]["train_vae"]:
         # load pretrained VAE model
         vae = VAE(
             args["model_parameters"]["in_channels"],
@@ -66,7 +66,7 @@ def main():
             device=device,
         )
     # test vae reconstructions quality
-    if args.test_vae:
+    if args["flags"]["test_vae"]:
         test_vae(
             vae,
             test_dataset,
@@ -79,7 +79,7 @@ def main():
         )
 
     # train diffusion model
-    if args.train_diffusion:
+    if args["flags"]["train_diffusion"]:
         if not args.pretrained_vae:
             diff_dataset = vae_dataset
         else:
@@ -116,7 +116,7 @@ def main():
             "saved_models/diffusion.pth",
         )
 
-    if args.sample_diffusion:
+    if args["flags"]["sample_diffusion"]:
         # load diffusion model
         diffusion_model = UNet(
             in_channels=args["model_parameters"]["in_channels"],
@@ -140,7 +140,7 @@ def main():
             "img_samples/",
         )
 
-    if args.eval_classpred:
+    if args["flags"]["eval_classpred"]:
         # load diffusion model
         diffusion_model = UNet(
             in_channels=args["model_parameters"]["in_channels"],
