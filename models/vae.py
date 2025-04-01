@@ -53,8 +53,7 @@ class VAE(nn.Module):
             nn.ReLU(),
             self.dec_conv2,
             nn.ReLU(),
-            self.dec_conv3,
-            nn.Sigmoid()
+            self.dec_conv3
         )
         
     def encode(self, x):
@@ -69,14 +68,16 @@ class VAE(nn.Module):
         eps = torch.randn_like(std)
         return mu + eps * std
     
-    def decode(self, z):
+    def decode(self, z, train=False):
         x = F.relu(self.fc_dec(z))
         x = x.view(x.size(0), 64, 9, 6)
         x = self.spec_dec(x)
+        if train:
+            x = torch.sigmoid(x)
         return x
 
-    def forward(self, x):
+    def forward(self, x, train=False):
         mu, logvar = self.encode(x)
         z = self.reparameterize(mu, logvar)
-        recon_x = self.decode(z)
+        recon_x = self.decode(z, train=train)
         return recon_x, mu, logvar
