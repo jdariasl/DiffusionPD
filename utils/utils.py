@@ -132,8 +132,8 @@ def sample_plot_image_scheduler(vae, model, T, latent_dim, device, save_path, n=
     vae.eval()
     noise_scheduler = DDPMScheduler(
         num_train_timesteps=T,
-        schedule="linear_beta",
-        beta_start=0.0015,
+        beta_schedule="linear",
+        beta_start=0.00015,
         beta_end=0.0195,
     )
     pipeline = Class_DDPMPipeline(unet=model, scheduler=noise_scheduler)

@@ -36,7 +36,7 @@ def train_diffusion(
     # set constant diffusion parameters
     noise_scheduler = DDPMScheduler(
         num_train_timesteps=time_steps,
-        schedule="linear_beta",
+        beta_schedule="linear",
         beta_start=0.0015,
         beta_end=0.0195,
     )

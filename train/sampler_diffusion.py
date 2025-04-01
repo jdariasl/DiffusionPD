@@ -38,7 +38,7 @@ class Class_DDPMPipeline(DiffusionPipeline):
         init_samples: Optional[torch.FloatTensor] = None,
         class_labels: Optional[torch.LongTensor] = None,
         generator: Optional[torch.Generator] = None,
-        num_inference_steps: int = 1000,
+        num_inference_steps: int = 100,
         device: Optional[torch.device] = None,
     ):
         r"""
@@ -80,6 +80,7 @@ class Class_DDPMPipeline(DiffusionPipeline):
         """
         # Sample gaussian noise to begin loop
         if init_samples is not None:
+            classification = True
             if isinstance(init_samples, torch.Tensor):
                 image = init_samples
             else:
@@ -87,6 +88,7 @@ class Class_DDPMPipeline(DiffusionPipeline):
                     f"init_samples should be of type torch.Tensor, but got {type(init_samples)}"
                 )
         else:
+            classification = False
             image = torch.randn(batch_size, latent_dim, generator=generator).to(device)
 
         if class_labels is not None:
@@ -98,8 +100,22 @@ class Class_DDPMPipeline(DiffusionPipeline):
                 )
         else:
             label = torch.randint(0, 4, (batch_size,), device=device)
+
+        if classification:
+            for t in self.scheduler.timesteps[-num_inference_steps:]:
+                # 1. predict noise model_output
+                t2 = t * torch.ones(image.shape[0], dtype=torch.int64).to(device)
+                model_output = self.unet(image, label, t2)
+
+                # 2. compute previous image: x_t -> x_t-1
+                image = self.scheduler.step(
+                    model_output, t, image, generator=generator
+                ).prev_sample
+            return image
+
         # set step values
-        self.scheduler.set_timesteps(num_inference_steps)
+        if not classification:
+            self.scheduler.set_timesteps(num_inference_steps)
 
         for t in self.scheduler.timesteps:
             # 1. predict noise model_output

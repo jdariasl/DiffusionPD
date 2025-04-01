@@ -4,7 +4,7 @@
     "diffusion_steps": 1000,
     "latent_dim": 64,
     "pred_diff_time": 50,
-    "diff_schedule": "DDPM", 
+    "diff_schedule": "DDPM" 
   },
   "optimization_parameters": {
     "batch_size": 32,
