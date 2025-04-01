@@ -2,6 +2,8 @@ import torch
 from torchvision.utils import save_image
 import torch.nn.functional as F
 import json
+from diffusers import DDPMScheduler
+from train.sampler_diffusion import Class_DDPMPipeline
 
 
 def read_config(file_path):
@@ -126,6 +128,33 @@ def get_index_from_list(vals, t, x_shape):
 
 
 @torch.no_grad()
+def sample_plot_image_scheduler(vae, model, T, latent_dim, device, save_path, n=10):
+    vae.eval()
+    noise_scheduler = DDPMScheduler(
+        num_train_timesteps=T,
+        schedule="linear_beta",
+        beta_start=0.0015,
+        beta_end=0.0195,
+    )
+    pipeline = Class_DDPMPipeline(unet=model, scheduler=noise_scheduler)
+    image = pipeline(
+        batch_size=n,
+        latent_dim=latent_dim,
+        generator=torch.Generator(device="cpu").manual_seed(1234),
+        device=device,
+        num_inference_steps=T,
+    )
+
+    img = vae.decode(image)
+    for j in range(n):
+        img_j = img[j].unsqueeze(0)
+        img_j = torch.clamp(img_j, -1.0, 1.0)
+
+        save_image(img_j.cpu(), save_path + "diff_samples_" + str(j) + ".png")
+    return
+
+
+@torch.no_grad()
 def sample_plot_image(vae, model, T, latent_dim, device, save_path, n=10):
     vae.eval()
     # set constant diffusion parameters
@@ -135,7 +164,7 @@ def sample_plot_image(vae, model, T, latent_dim, device, save_path, n=10):
     sqrt_recip_alphas = diff_params["sqrt_recip_alphas"]
     posterior_variance = diff_params["posterior_variance"]
 
-    num_images = 10
+    num_images = 12
     stepsize = int(T / num_images)
 
     for j in range(n):

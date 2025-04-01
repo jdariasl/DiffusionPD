@@ -5,7 +5,13 @@ from train.train_vae import train_vae
 from train.train_diffusion import train_diffusion
 import warnings
 from models.vae import VAE
-from utils.utils import test_vae, sample_plot_image, eval_class_pred_diff, read_config
+from utils.utils import (
+    test_vae,
+    sample_plot_image,
+    eval_class_pred_diff,
+    read_config,
+    sample_plot_image_scheduler,
+)
 from models.unet import UNet
 from sklearn.metrics import classification_report
 
@@ -105,6 +111,7 @@ def main():
             z_dim=args["model_parameters"]["latent_dim"],
             epochs=args["optimization_parameters"]["num_epochs_diff"],
             lr=args["optimization_parameters"]["learning_rate_diff"],
+            lr_warmup_steps=args["optimization_parameters"]["lr_warmup_steps"],
             pred_diff_time=args["model_parameters"]["pred_diff_time"],
             device=device,
         )
@@ -131,7 +138,7 @@ def main():
         )
 
         # test diffusion model
-        sample_plot_image(
+        sample_plot_image_scheduler(
             vae,
             diffusion_model,
             args["model_parameters"]["diffusion_steps"],
@@ -139,6 +146,14 @@ def main():
             device,
             "img_samples/",
         )
+        # sample_plot_image(
+        #    vae,
+        #    diffusion_model,
+        #    args["model_parameters"]["diffusion_steps"],
+        #    args["model_parameters"]["latent_dim"],
+        #    device,
+        #    "img_samples/",
+        # )
 
     if args["flags"]["eval_classpred"]:
         # load diffusion model

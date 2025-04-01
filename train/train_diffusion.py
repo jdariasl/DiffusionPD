@@ -1,4 +1,5 @@
 import torch
+import torch.nn.functional as F
 from models.unet import UNet
 from utils.utils import set_diffusion_params
 import torch.optim as optim
@@ -6,6 +7,9 @@ from losses.losses import diff_loss
 from utils.utils import forward_diffusion_sample, reverse_diff
 from torch.optim.lr_scheduler import ExponentialLR
 from torch.cuda.amp import GradScaler
+from diffusers import DDPMScheduler
+from diffusers.optimization import get_cosine_schedule_with_warmup
+from .sampler_diffusion import Class_DDPMPipeline
 
 
 def train_diffusion(
@@ -17,6 +21,7 @@ def train_diffusion(
     z_dim,
     epochs,
     lr,
+    lr_warmup_steps,
     pred_diff_time,
     device,
 ):
@@ -29,10 +34,21 @@ def train_diffusion(
     ).to(device)
 
     # set constant diffusion parameters
-    diff_params = set_diffusion_params(T=time_steps)
+    noise_scheduler = DDPMScheduler(
+        num_train_timesteps=time_steps,
+        schedule="linear_beta",
+        beta_start=0.0015,
+        beta_end=0.0195,
+    )
+    # diff_params = set_diffusion_params(T=time_steps)
     optimizer = optim.Adam(model.parameters(), lr=lr)
+    lr_scheduler = get_cosine_schedule_with_warmup(
+        optimizer=optimizer,
+        num_warmup_steps=lr_warmup_steps,
+        num_training_steps=(len(train_loader) * epochs),
+    )
 
-    scheduler = ExponentialLR(optimizer, gamma=0.9)
+    # scheduler = ExponentialLR(optimizer, gamma=0.9)
 
     vae.eval()
     for epoch in range(epochs):
@@ -47,33 +63,75 @@ def train_diffusion(
             optimizer.zero_grad()
             with torch.autocast(device_type="cuda"):
                 t = torch.randint(0, time_steps, (data.shape[0],)).to(device)
-                loss = diff_loss(
-                    model,
-                    mu,
-                    label,
-                    t,
-                    diff_params["sqrt_alphas_cumprod"],
-                    diff_params["sqrt_one_minus_alphas_cumprod"],
-                    device,
-                )
+                noise = torch.randn_like(mu).to(device)
+                noisy_data = noise_scheduler.add_noise(mu, noise, t)
+                noise_pred = model(noisy_data, label, t)
+                loss = F.mse_loss(noise_pred, noise)
+                # loss = diff_loss(
+                #    model,
+                #    mu,
+                #    label,
+                #    t,
+                #    diff_params["sqrt_alphas_cumprod"],
+                #    diff_params["sqrt_one_minus_alphas_cumprod"],
+                #    device,
+                # )
             scaler_diffusion.scale(loss).backward()
             scaler_diffusion.step(optimizer)
             scaler_diffusion.update()
+            lr_scheduler.step()
 
             # loss.backward()
             train_loss += loss.item()
-            optimizer.step()
+            # optimizer.step()
         print(
             "====> Epoch: {} Average diff loss: {:.4f}".format(
                 epoch, train_loss / len(train_loader.dataset)
             )
         )
 
-        test_diffusion(
-            vae, time_steps, test_loader, model, diff_params, device, pred_diff_time
+        test_diffusion_scheduler(
+            vae, test_loader, model, noise_scheduler, device, pred_diff_time
         )
-        scheduler.step()
+        # scheduler.step()
     return model
+
+
+def test_diffusion_scheduler(
+    vae, test_loader, model, noise_scheduler, device, T_pred=50
+):
+    model.eval()
+    pipeline = Class_DDPMPipeline(unet=model, scheduler=noise_scheduler)
+    test_loss = 0
+    with torch.no_grad():
+        for i, (data, label, _, _) in enumerate(test_loader):
+            data = data.to(device)
+            mu, _ = vae.encode(data)
+            label = label.long().to(device)
+            recover_spec = pipeline(
+                init_samples=mu,
+                class_labels=label,
+                num_inference_steps=T_pred,
+                generator=torch.Generator(device="cpu").manual_seed(1234),
+            )
+
+            label_not = (~label.bool()).long()
+            recover_spec_not = pipeline(
+                init_samples=mu,
+                class_labels=label_not,
+                num_inference_steps=T_pred,
+                generator=torch.Generator(device="cpu").manual_seed(1234),
+            ).images
+
+            loss = torch.mean(
+                torch.mean(torch.abs(recover_spec - mu), axis=1)
+                - torch.mean(torch.abs(recover_spec_not - mu), axis=1)
+            )
+            test_loss += loss.item()
+
+    test_loss /= len(test_loader.dataset)
+    print("====> Test set loss: {:.4f}".format(test_loss))
+    return test_loss
 
 
 def test_diffusion(vae, time_steps, test_loader, model, diff_params, device, T_pred=50):
