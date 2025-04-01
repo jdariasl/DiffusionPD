@@ -37,7 +37,7 @@ def test_vae(
         for i, (data, _, _, _) in enumerate(test_loader):
             data = data.to(device)
             mu, _ = vae.encode(data)
-            recon_batch = vae.decode(mu)
+            recon_batch = vae.decode(mu, train=False)
             if i == 0:
                 n = min(data.size(0), n_samples)
                 comparison = torch.cat(
