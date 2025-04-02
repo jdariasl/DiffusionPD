@@ -94,7 +94,7 @@ class Class_DDPMPipeline(DiffusionPipeline):
 
         if class_labels is not None:
             if isinstance(class_labels, torch.Tensor):
-                label = class_labels
+                label = class_labels.to(device)
             else:
                 raise ValueError(
                     f"class_labels should be of type torch.Tensor, but got {type(class_labels)}"
@@ -103,10 +103,12 @@ class Class_DDPMPipeline(DiffusionPipeline):
             label = torch.randint(0, 4, (batch_size,), device=device)
 
         if classification:
+            model = self.unet.to(device)
             for t in self.scheduler.timesteps[-num_inference_steps:]:
                 # 1. predict noise model_output
-                t2 = t * torch.ones(image.shape[0], dtype=torch.int64).to(device)
-                model_output = self.unet(image, label, t2)
+                t2 = t * torch.ones(image.shape[0], dtype=torch.int64)
+                
+                model_output = model(image.to(device), label.to(device), t2.to(device))
 
                 # 2. compute previous image: x_t -> x_t-1
                 image = self.scheduler.step(
@@ -119,9 +121,10 @@ class Class_DDPMPipeline(DiffusionPipeline):
             self.scheduler.set_timesteps(num_inference_steps)
 
         for t in self.scheduler.timesteps:
+            model = self.unet.to(device)
             # 1. predict noise model_output
             t2 = t * torch.ones(image.shape[0], dtype=torch.int64).to(device)
-            model_output = self.unet(image, label, t2)
+            model_output = model(image.to(device), label.to(device), t2.to(device))
 
             # 2. compute previous image: x_t -> x_t-1
             image = self.scheduler.step(
