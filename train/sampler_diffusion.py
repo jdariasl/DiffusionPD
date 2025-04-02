@@ -83,6 +83,7 @@ class Class_DDPMPipeline(DiffusionPipeline):
             classification = True
             if isinstance(init_samples, torch.Tensor):
                 image = init_samples
+                image = image.to(device)
             else:
                 raise ValueError(
                     f"init_samples should be of type torch.Tensor, but got {type(init_samples)}"

@@ -107,12 +107,14 @@ def test_diffusion_scheduler(
         for i, (data, label, _, _) in enumerate(test_loader):
             data = data.to(device)
             mu, _ = vae.encode(data)
+            mu = mu.to(device)
             label = label.long().to(device)
             recover_spec = pipeline(
                 init_samples=mu,
                 class_labels=label,
                 num_inference_steps=T_pred,
                 generator=torch.Generator(device="cpu").manual_seed(1234),
+                device=device
             )
 
             label_not = (~label.bool()).long()
