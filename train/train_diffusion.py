@@ -117,13 +117,14 @@ def test_diffusion_scheduler(
                 device=device
             )
 
-            label_not = (~label.bool()).long()
+            label_not = (~label.bool()).long().to(device)
             recover_spec_not = pipeline(
                 init_samples=mu,
                 class_labels=label_not,
                 num_inference_steps=T_pred,
                 generator=torch.Generator(device="cpu").manual_seed(1234),
-            ).images
+                device=device
+            )
 
             loss = torch.mean(
                 torch.mean(torch.abs(recover_spec - mu), axis=1)

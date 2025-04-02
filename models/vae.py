@@ -68,16 +68,16 @@ class VAE(nn.Module):
         eps = torch.randn_like(std)
         return mu + eps * std
     
-    def decode(self, z, train=False):
+    def decode(self, z):
         x = F.relu(self.fc_dec(z))
         x = x.view(x.size(0), 64, 9, 6)
         x = self.spec_dec(x)
-        if train:
-            x = torch.sigmoid(x)
+        #if train:
+        #    x = torch.sigmoid(x)
         return x
 
     def forward(self, x, train=False):
         mu, logvar = self.encode(x)
         z = self.reparameterize(mu, logvar)
-        recon_x = self.decode(z, train=train)
+        recon_x = self.decode(z)
         return recon_x, mu, logvar

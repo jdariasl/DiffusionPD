@@ -8,7 +8,7 @@ from torch.cuda.amp import GradScaler
 
 def train_vae(train_loader, test_loader, x_dim, z_dim, epochs, lr, device):
     best_loss_val = 1e10
-    scaler = GradScaler()
+    #scaler = GradScaler()
 
     model = VAE(x_dim, z_dim).to(device)
     optimizer = optim.Adam(model.parameters(), lr=lr)
@@ -18,19 +18,20 @@ def train_vae(train_loader, test_loader, x_dim, z_dim, epochs, lr, device):
         for batch_idx, (data, _, _, _) in enumerate(train_loader):
             data = data.to(device)
             optimizer.zero_grad()
-            with torch.autocast(device_type="cuda"):
+            
+            #with torch.autocast(device_type="cuda"):
                 # Forward pass
-                recon_batch, mu, logvar = model(data,train=True)
-                loss = vae_loss(recon_batch, data, mu, logvar)
+            recon_batch, mu, logvar = model(data)
+            loss = vae_loss(recon_batch, data, mu, logvar)
 
             # Backward pass
-            scaler.scale(loss).backward()
-            scaler.step(optimizer)
-            scaler.update()
+            #scaler.scale(loss).backward()
+            #scaler.step(optimizer)
+            #scaler.update()
 
-            # loss.backward()
+            loss.backward()
             train_loss += loss.item()
-            # optimizer.step()
+            optimizer.step()
         print(
             "====> Epoch: {} Average vae loss: {:.4f}".format(
                 epoch, train_loss / len(train_loader.dataset)
