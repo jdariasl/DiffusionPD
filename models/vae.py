@@ -76,7 +76,7 @@ class VAE(nn.Module):
         #    x = torch.sigmoid(x)
         return x
 
-    def forward(self, x, train=False):
+    def forward(self, x):
         mu, logvar = self.encode(x)
         z = self.reparameterize(mu, logvar)
         recon_x = self.decode(z)
