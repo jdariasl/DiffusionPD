@@ -12,7 +12,7 @@ from utils.utils import (
     read_config,
     sample_plot_image_scheduler,
 )
-from models.unet import UNet
+from models.unet import UNet, BatchNormlizer
 from sklearn.metrics import classification_report
 
 warnings.warn = lambda *args, **kwargs: None
@@ -102,7 +102,7 @@ def main():
                 shuffle=True,
             )
 
-        diffusion_model = train_diffusion(
+        diffusion_model, Norm = train_diffusion(
             vae,
             args["model_parameters"]["diffusion_steps"],
             diff_dataset,
@@ -122,8 +122,26 @@ def main():
             },
             "saved_models/diffusion.pth",
         )
+        torch.save(
+            {
+                "model_state_dict": Norm.state_dict(),
+            },
+            "saved_models/normalizer.pth",
+        )
 
     if args["flags"]["sample_diffusion"]:
+        
+        #load normalizer
+        Norm = BatchNormlizer(num_features=args["model_parameters"]["latent_dim"]).to(
+            device
+        )
+        Norm.load_state_dict(
+            torch.load("saved_models/normalizer.pth", map_location=device)[
+                "model_state_dict"
+            ]
+        )
+        Norm.eval()
+        
         # load diffusion model
         diffusion_model = UNet(
             in_channels=args["model_parameters"]["in_channels"],
@@ -140,6 +158,7 @@ def main():
         # test diffusion model
         sample_plot_image_scheduler(
             vae,
+            Norm,
             diffusion_model,
             args["model_parameters"]["diffusion_steps"],
             args["model_parameters"]["latent_dim"],
@@ -156,6 +175,16 @@ def main():
         # )
 
     if args["flags"]["eval_classpred"]:
+        #load normalizer
+        Norm = BatchNormlizer(num_features=args["model_parameters"]["latent_dim"]).to(
+            device
+        )
+        Norm.load_state_dict(
+            torch.load("saved_models/normalizer.pth", map_location=device)[
+                "model_state_dict"
+            ]
+        )
+        Norm.eval()
         # load diffusion model
         diffusion_model = UNet(
             in_channels=args["model_parameters"]["in_channels"],
@@ -172,6 +201,7 @@ def main():
             eval_class_pred_diff(
                 test_dataset,
                 vae,
+                Norm,
                 diffusion_model,
                 args["model_parameters"]["diffusion_steps"],
                 device,

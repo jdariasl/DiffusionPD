@@ -129,8 +129,9 @@ def get_index_from_list(vals, t, x_shape):
 
 
 @torch.no_grad()
-def sample_plot_image_scheduler(vae, model, T, latent_dim, device, save_path, n=10):
+def sample_plot_image_scheduler(vae, norm, model, T, latent_dim, device, save_path, n=10, return_image=False):
     vae.eval()
+    norm.eval()
     noise_scheduler = DDPMScheduler(
         num_train_timesteps=T,
         beta_schedule="linear",
@@ -145,13 +146,15 @@ def sample_plot_image_scheduler(vae, model, T, latent_dim, device, save_path, n=
         device=device,
         num_inference_steps=T,
     )
-
+    image = ((image-norm.batch_norm.bias)/norm.batch_norm.weight)*torch.sqrt(norm.batch_norm.running_var +norm.batch_norm.eps) + norm.batch_norm.running_mean
     img = vae.decode(image)
     for j in range(n):
         img_j = img[j].unsqueeze(0)
         img_j = torch.clamp(img_j, -1.0, 1.0)
 
         save_image(img_j.cpu(), save_path + "diff_samples_" + str(j) + ".png")
+        if return_image and j==n-1:
+            return img_j.cpu()         
     return
 
 
@@ -265,8 +268,9 @@ def sample_timestep(
 
 
 @torch.no_grad()
-def eval_class_pred_diff(test_loader, vae, model, T, device, pred_T=50):
+def eval_class_pred_diff(test_loader, vae, norm, model, T, device, pred_T=50):
     vae.eval()
+    norm.eval()
     model.eval()
 
     pred_labels = []
@@ -280,6 +284,7 @@ def eval_class_pred_diff(test_loader, vae, model, T, device, pred_T=50):
             speakers.append(speaker_id)
             data = data.to(device)
             mu, _ = vae.encode(data)
+            mu = norm(mu)
             true_labels.append(label)
             label = torch.ones(mu.shape[0], dtype=torch.int64).to(device)
             t = pred_T * torch.ones(mu.shape[0], dtype=torch.int64).to(device)

@@ -13,7 +13,7 @@ def vae_loss(recon_x, x, mu, logvar):
     kl_loss = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
 
     # Total loss
-    return 2*recon_loss + kl_loss
+    return 4*recon_loss + kl_loss
 
 
 def diff_loss(
