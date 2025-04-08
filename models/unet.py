@@ -168,3 +168,13 @@ class UNet(nn.Module):
         dec1 = self.decoder1(dec1, class_embeb, time_emb)
         out = torch.sigmoid(self.conv(dec1))
         return out.squeeze(1)
+    
+    
+class BatchNormlizer(nn.Module):
+    def __init__(self, num_features):
+        super(BatchNormlizer, self).__init__()
+        self.batch_norm = nn.BatchNorm1d(num_features)
+
+    def forward(self, x):
+        x = self.batch_norm(x)
+        return x
