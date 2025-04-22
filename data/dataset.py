@@ -8,9 +8,9 @@ import numpy as np
 import random
 
 SAMPLE_RATE = 44100
-DATA_PATH_Gita = "/home/jdariasl/Documents/Experiments/Experiments_EmiroIbarra/Parkinson_datasets/Gita/Pataka/"
-DATA_PATH_NeuroV = "/home/jdariasl/Documents/Experiments/Experiments_EmiroIbarra/Parkinson_datasets/Neurovoz/PorMaterial_limpios1_2_downsized/PATAKA/"
-DATA_PATH_SaarB = "/home/jdariasl/Documents/Experiments/Experiments_EmiroIbarra/Saarbruecken_dataset/vowel_a_resampled/"
+DATA_PATH_Gita = "/home/jarias@gaps_domain.ssr.upm.es/Experiments_EmiroIbarra/Parkinson_datasets/Gita/Pataka/"
+DATA_PATH_NeuroV = "/home/jarias@gaps_domain.ssr.upm.es/Experiments_EmiroIbarra/Parkinson_datasets/Neurovoz/PATAKA/"
+DATA_PATH_SaarB = "/home/jarias@gaps_domain.ssr.upm.es/Experiments_EmiroIbarra/Saarbruecken_dataset/vowel_a_resampled/"
 
 
 # /Users/julian/Documents/Bases de datos
@@ -31,6 +31,7 @@ class Pataka_Dataset(Dataset):
         self.DBs = DBs
         self.mode = mode
         self.paths, self.labels, self.speaker_ids, self.dbs_id = self.read_data()
+        print_speakers(self.paths)
         (   self.y_label,
             self.subject_group,
             self.db_group,
@@ -46,8 +47,9 @@ class Pataka_Dataset(Dataset):
         audio, _ = librosa.load(self.segments_paths[index], sr=SAMPLE_RATE)
         audio = audio / np.max(abs(audio))
         signal = audio[self.ind_starts[index] : int(self.ind_ends[index])]
-        spec = compute_norm_spect(np.expand_dims(signal, 0), SAMPLE_RATE)
+        spec, spec_o = compute_norm_spect(np.expand_dims(signal, 0), SAMPLE_RATE)
         return (
+            torch.tensor(spec_o, dtype=torch.float32),
             torch.tensor(spec, dtype=torch.float32),
             torch.tensor(self.y_label[index], dtype=torch.float32),
             torch.tensor(self.subject_group[index], dtype=torch.float32),
@@ -291,13 +293,14 @@ def compute_norm_spect(signal, sample_rate):
         mel_scale="htk",
     )
 
-    scaler = MinMaxScaler()
     signal = augment_audio(signal, sample_rate)
-    mel_spect = librosa.power_to_db(mel_spectrogram(torch.from_numpy(signal)))
-    mel_spect = augment_spectrogram(mel_spect)
-    mel_spect_norm = scaler.fit_transform(mel_spect.squeeze(0))
+    mel_spect_o = librosa.power_to_db(mel_spectrogram(torch.from_numpy(signal)))
+    mel_spect = augment_spectrogram(mel_spect_o)
+    mel_spect_norm_o = MinMaxScaler().fit_transform(mel_spect_o.squeeze(0))
+    mel_spect_norm = MinMaxScaler().fit_transform(mel_spect.squeeze(0))
     mel_spectrograms = np.expand_dims(mel_spect_norm, 0)
-    return mel_spectrograms
+    mel_spectrograms_o = np.expand_dims(mel_spect_norm_o, 0)
+    return mel_spectrograms, mel_spectrograms_o
 
 def augment_spectrogram(spectrogram, prob = 0.5, noise_factor=0.005, mask_percentage=0.1):
     
@@ -326,5 +329,11 @@ def augment_audio(signal, sample_rate, prob = 0.5, time_stretch_range=(0.8, 1.2)
         pitch_shift_steps = random.randint(*pitch_shift_range)
         signal = librosa.effects.pitch_shift(signal, sr=sample_rate, n_steps = pitch_shift_steps)
     
-    return signal 
+    return signal
+
+def print_speakers(path_lists): 
+    # print the file names included in the dataset
+    for i in range(len(path_lists)):
+        name = path_lists[i].split("/")[-1]
+        print(name)
     
