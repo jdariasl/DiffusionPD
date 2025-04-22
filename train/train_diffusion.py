@@ -24,11 +24,14 @@ def train_diffusion(
     lr_warmup_steps,
     pred_diff_time,
     device,
+    resume_training=False,
+    model=None,
 ):  
     # Start a new wandb run to track this script.
+    wandb.login(key="d3ab2dfb9825e30136d030033cfd019c6dc63407")
     run = wandb.init(
         # Set the wandb entity where your project will be logged (generally your team name).
-        entity="BYO-UPM-UdeA",
+        entity="jdariasl",
         # Set the wandb project where this run will be logged.
         project="Diffusion_PD",
         # Track hyperparameters and run metadata.
@@ -46,11 +49,13 @@ def train_diffusion(
         )
     # best_loss_val = 1e10
     scaler_diffusion = GradScaler()
-
-    # backbone model
-    model = UNet(
-        in_channels=x_dim, out_channels=1, num_classes=4, init_features=z_dim
-    ).to(device)
+    if resume_training:
+        model = model
+    else:
+        # backbone model
+        model = UNet(
+            in_channels=x_dim, out_channels=1, num_classes=4, init_features=z_dim
+        ).to(device)
     
     Norm = BatchNormlizer(num_features=z_dim).to(device)
     Norm.train()
@@ -64,8 +69,9 @@ def train_diffusion(
     )
 
     # diff_params = set_diffusion_params(T=time_steps)
-    params = list(model.parameters()) + list(Norm.parameters())
-    optimizer = optim.Adam(params, lr=lr)
+    #params = list(model.parameters()) + list(Norm.parameters())
+    #optimizer = optim.Adam(params, lr=lr)
+    optimizer = optim.AdamW(model.parameters(), lr=lr)
     lr_scheduler = get_cosine_schedule_with_warmup(
         optimizer=optimizer,
         num_warmup_steps=lr_warmup_steps,
@@ -78,13 +84,13 @@ def train_diffusion(
     for epoch in range(epochs):
         model.train()
         train_loss = 0
-        for batch_idx, (data, label, _, _) in enumerate(train_loader):
+        for batch_idx, (data, _, label, _, _) in enumerate(train_loader):
             data = data.to(device)
             label = label.long().to(device)
             with torch.no_grad():
                 mu, _ = vae.encode(data)
                 mu = mu.to(device)
-            mu = Norm(mu)
+            #mu = Norm(mu)
             optimizer.zero_grad()
             with torch.autocast(device_type="cuda"):
                 t = torch.randint(0, time_steps, (data.shape[0],)).to(device)
@@ -146,11 +152,11 @@ def test_diffusion_scheduler(
     pipeline = Class_DDPMPipeline(unet=model, scheduler=noise_scheduler)
     test_loss = 0
     with torch.no_grad():
-        for i, (data, label, _, _) in enumerate(test_loader):
+        for i, (data, _, label, _, _) in enumerate(test_loader):
             data = data.to(device)
             mu, _ = vae.encode(data)
             mu = mu.to(device)
-            mu = Norm(mu)
+            #mu = Norm(mu)
             label = label.long().to(device)
             recover_spec = pipeline(
                 init_samples=mu,
@@ -184,7 +190,7 @@ def test_diffusion(vae, time_steps, test_loader, model, diff_params, device, T_p
     model.eval()
     test_loss = 0
     with torch.no_grad():
-        for i, (data, label, _, _) in enumerate(test_loader):
+        for i, (data,_, label, _, _) in enumerate(test_loader):
             data = data.to(device)
             mu, _ = vae.encode(data)
             label = label.long().to(device)

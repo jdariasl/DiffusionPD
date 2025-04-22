@@ -6,20 +6,25 @@ import torch.optim as optim
 #from torch.cuda.amp import GradScaler
 
 
-def train_vae(train_loader, test_loader, x_dim, z_dim, epochs, lr, device):
+def train_vae(train_loader, test_loader, x_dim, z_dim, epochs, lr, device, resume_training=False, vae=None):
     best_loss_val = 1e10
     #scaler = GradScaler()
-
-    model = VAE(x_dim, z_dim).to(device)
+    if resume_training:
+        model = vae
+    else:
+        # Initialize the VAE model
+        model = VAE(x_dim, z_dim).to(device)
+    
     optimizer = optim.Adam(model.parameters(), lr=lr)
     for epoch in range(epochs):
         model.train()
         train_loss = 0
-        for batch_idx, (data, _, _, _) in enumerate(train_loader):
+        for batch_idx, (data_o,data, _, _, _) in enumerate(train_loader):
             data = data.to(device)
+            data_o = data_o.to(device)
             optimizer.zero_grad()
             recon_batch, mu, logvar = model(data)
-            loss = vae_loss(recon_batch, data, mu, logvar)
+            loss = vae_loss(recon_batch, data_o, mu, logvar)
             loss.backward()
             train_loss += loss.item()
             optimizer.step()
@@ -49,10 +54,11 @@ def test_vae(test_loader, model, device):
     model.eval()
     test_loss = 0
     with torch.no_grad():
-        for i, (data, _, _, _) in enumerate(test_loader):
+        for i, (data_o, data, _, _, _) in enumerate(test_loader):
             data = data.to(device)
+            data_o = data_o.to(device)
             recon_batch, mu, logvar = model(data)
-            test_loss += vae_loss(recon_batch, data, mu, logvar).item()
+            test_loss += vae_loss(recon_batch, data_o, mu, logvar).item()
     test_loss /= len(test_loader.dataset)
     print("====> Test set loss: {:.4f}".format(test_loss))
     return test_loss

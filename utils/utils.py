@@ -34,15 +34,16 @@ def test_vae(
     print(save_path)
     vae.eval()
     with torch.no_grad():
-        for i, (data, _, _, _) in enumerate(test_loader):
+        for i, (data_o,data, _, _, _) in enumerate(test_loader):
             data = data.to(device)
+            data_o = data_o.to(device)
             mu, _ = vae.encode(data)
             recon_batch = vae.decode(mu)
             recon_batch = torch.nn.functional.sigmoid(recon_batch)
             if i == 0:
                 n = min(data.size(0), n_samples)
                 comparison = torch.cat(
-                    [data[:n], recon_batch.view(data.size(0), 1, 65, 41)[:n]]
+                    [data_o[:n], recon_batch.view(data.size(0), 1, 65, 41)[:n]]
                 )
                 save_image(comparison.cpu(), save_path + "vae_comparisons.png", nrow=n)
                 if save_reconstructions:
@@ -146,7 +147,10 @@ def sample_plot_image_scheduler(vae, norm, model, T, latent_dim, device, save_pa
         device=device,
         num_inference_steps=T,
     )
+    #print(image.max(), image.min(), image.mean())
+    #print(norm.batch_norm.bias)
     image = ((image-norm.batch_norm.bias)/norm.batch_norm.weight)*torch.sqrt(norm.batch_norm.running_var +norm.batch_norm.eps) + norm.batch_norm.running_mean
+    #print(image.max(), image.min(), image.mean())
     img = vae.decode(image)
     for j in range(n):
         img_j = img[j].unsqueeze(0)
@@ -266,6 +270,75 @@ def sample_timestep(
         noise = torch.randn_like(x)
         return model_mean + torch.sqrt(posterior_variance_t) * noise
 
+@torch.no_grad()
+def eval_class_pred_diff_scheduler(test_loader, vae, model, time_steps, device, pred_T=50
+):
+    model.eval()
+    
+    pred_labels = []
+    true_labels = []
+    speakers = []
+    scores = []
+    
+    # set constant diffusion parameters
+    noise_scheduler = DDPMScheduler(
+        num_train_timesteps=time_steps,
+        beta_schedule="linear",
+        beta_start=0.0015,
+        beta_end=0.0195,
+    )
+    
+    pipeline = Class_DDPMPipeline(unet=model, scheduler=noise_scheduler)
+    test_loss = 0
+    with torch.no_grad():
+        for i, (data, _, label, speaker_id, _) in enumerate(test_loader):
+            data = data.to(device)
+            mu, _ = vae.encode(data)
+            mu = mu.to(device)
+            #mu = Norm(mu)
+            true_labels.append(label)
+            speakers.append(speaker_id)
+            label = torch.ones(mu.shape[0], dtype=torch.int64).to(device)
+            recover_spec = pipeline(
+                init_samples=mu,
+                class_labels=label,
+                num_inference_steps=pred_T,
+                generator=torch.Generator(device="cpu").manual_seed(1234),
+                device=device
+            )
+
+            label_not = (~label.bool()).long().to(device)
+            recover_spec_not = pipeline(
+                init_samples=mu,
+                class_labels=label_not,
+                num_inference_steps=pred_T,
+                generator=torch.Generator(device="cpu").manual_seed(1234),
+                device=device
+            )
+
+            pred_score = -1 * (
+                torch.mean(torch.abs(recover_spec - mu), axis=1)
+                - torch.mean(torch.abs(recover_spec_not - mu), axis=1)
+            )
+            scores.append(pred_score)
+            pred_labels.append((pred_score > 0).long())
+    true_labels = torch.cat(true_labels)
+    pred_labels = torch.cat(pred_labels)
+    speakers = torch.cat(speakers)
+    scores = torch.cat(scores)
+    n_speakers = torch.unique(speakers)
+    pred_labels_speaker = []
+    true_labels_speaker = []
+    scores_speaker = []
+    for i, speaker in enumerate(n_speakers):
+        idx = speakers == speaker
+        scores_speaker.append(torch.mean(scores[idx]))
+        true_labels_speaker.append(true_labels[idx][0])
+        pred_labels_speaker.append((scores_speaker[i] > 0).long())
+    true_labels_speaker = torch.stack(true_labels_speaker)
+    pred_labels_speaker = torch.stack(pred_labels_speaker)
+
+    return true_labels, pred_labels, true_labels_speaker, pred_labels_speaker
 
 @torch.no_grad()
 def eval_class_pred_diff(test_loader, vae, norm, model, T, device, pred_T=50):
@@ -278,7 +351,7 @@ def eval_class_pred_diff(test_loader, vae, norm, model, T, device, pred_T=50):
     speakers = []
     scores = []
     with torch.no_grad():
-        for i, (data, label, speaker_id, _) in enumerate(test_loader):
+        for i, (data, _, label, speaker_id, _) in enumerate(test_loader):
 
             diff_params = set_diffusion_params(T=T)
             speakers.append(speaker_id)

@@ -9,6 +9,7 @@ from utils.utils import (
     test_vae,
     sample_plot_image,
     eval_class_pred_diff,
+    eval_class_pred_diff_scheduler,
     read_config,
     sample_plot_image_scheduler,
 )
@@ -49,7 +50,7 @@ def main():
             ]
         )
     else:
-        # train VAE from scratch
+       
         vae_dataset = Pataka_Dataset(
             DBs=["Gita", "Neurovoz", "Saarbruecken"],
             train_size=0.91,
@@ -61,16 +62,49 @@ def main():
             batch_size=args["optimization_parameters"]["batch_size"],
             shuffle=True,
         )
-
-        vae = train_vae(
-            vae_dataset,
-            test_dataset,
-            x_dim=args["model_parameters"]["in_channels"],
-            z_dim=args["model_parameters"]["latent_dim"],
-            epochs=args["optimization_parameters"]["num_epochs_vae"],
-            lr=args["optimization_parameters"]["learning_rate_vae"],
-            device=device,
+        if not args["flags"]["resume_training_vae"]:
+            # train VAE from scratch
+            vae = train_vae(
+                vae_dataset,
+                test_dataset,
+                x_dim=args["model_parameters"]["in_channels"],
+                z_dim=args["model_parameters"]["latent_dim"],
+                epochs=args["optimization_parameters"]["num_epochs_vae"],
+                lr=args["optimization_parameters"]["learning_rate_vae"],
+                device=device)
+        elif args["flags"]["resume_training_vae"]:
+            # load pretrained VAE model
+            vae = VAE(
+                args["model_parameters"]["in_channels"],
+                z_dim=args["model_parameters"]["latent_dim"],
+            ).to(device)
+            vae.load_state_dict(
+                torch.load(args["paths"]["vae_model_path"], map_location=device)[
+                    "model_state_dict"
+                ]
+            )
+            vae.train()
+            
+            # train VAE from scratch
+            vae = train_vae(
+                vae_dataset,
+                test_dataset,
+                x_dim=args["model_parameters"]["in_channels"],
+                z_dim=args["model_parameters"]["latent_dim"],
+                epochs=args["optimization_parameters"]["num_epochs_vae"],
+                lr=args["optimization_parameters"]["learning_rate_vae"],
+                device=device,
+                resume_training=True,
+                vae=vae, 
         )
+        #save vae
+        vae.save(
+            {
+                "model_state_dict": vae.state_dict(),
+            },
+            "saved_models/vae.pth",
+        )
+
     # test vae reconstructions quality
     if args["flags"]["test_vae"]:
         test_vae(
@@ -101,33 +135,61 @@ def main():
                 batch_size=args["optimization_parameters"]["batch_size"],
                 shuffle=True,
             )
+            if args["flags"]["resume_training_diff"]:
+                # load pretrained diffusion model
+                diffusion_model = UNet(
+                    in_channels=args["model_parameters"]["in_channels"],
+                    out_channels=1,
+                    num_classes=4,
+                    init_features=args["model_parameters"]["latent_dim"],
+                ).to(device)
+                diffusion_model.load_state_dict(
+                    torch.load(args["paths"]["diffusion_model_path"], map_location=device)[
+                        "model_state_dict"
+                    ]
+                )
+                diffusion_model, Norm = train_diffusion(
+                    vae,
+                    args["model_parameters"]["diffusion_steps"],
+                    diff_dataset,
+                    test_dataset,
+                    x_dim=args["model_parameters"]["in_channels"],
+                    z_dim=args["model_parameters"]["latent_dim"],
+                    epochs=args["optimization_parameters"]["num_epochs_diff"],
+                    lr=args["optimization_parameters"]["learning_rate_diff"],
+                    lr_warmup_steps=args["optimization_parameters"]["lr_warmup_steps"],
+                    pred_diff_time=args["model_parameters"]["pred_diff_time"],
+                    device=device,
+                    resume_training=True,
+                    model=diffusion_model,
+                )
+            else:
+                diffusion_model, Norm = train_diffusion(
+                    vae,
+                    args["model_parameters"]["diffusion_steps"],
+                    diff_dataset,
+                    test_dataset,
+                    x_dim=args["model_parameters"]["in_channels"],
+                    z_dim=args["model_parameters"]["latent_dim"],
+                    epochs=args["optimization_parameters"]["num_epochs_diff"],
+                    lr=args["optimization_parameters"]["learning_rate_diff"],
+                    lr_warmup_steps=args["optimization_parameters"]["lr_warmup_steps"],
+                    pred_diff_time=args["model_parameters"]["pred_diff_time"],
+                    device=device,
+                )
 
-        diffusion_model, Norm = train_diffusion(
-            vae,
-            args["model_parameters"]["diffusion_steps"],
-            diff_dataset,
-            test_dataset,
-            x_dim=args["model_parameters"]["in_channels"],
-            z_dim=args["model_parameters"]["latent_dim"],
-            epochs=args["optimization_parameters"]["num_epochs_diff"],
-            lr=args["optimization_parameters"]["learning_rate_diff"],
-            lr_warmup_steps=args["optimization_parameters"]["lr_warmup_steps"],
-            pred_diff_time=args["model_parameters"]["pred_diff_time"],
-            device=device,
-        )
-
-        torch.save(
-            {
-                "model_state_dict": diffusion_model.state_dict(),
-            },
-            "saved_models/diffusion.pth",
-        )
-        torch.save(
-            {
-                "model_state_dict": Norm.state_dict(),
-            },
-            "saved_models/normalizer.pth",
-        )
+            torch.save(
+                {
+                    "model_state_dict": diffusion_model.state_dict(),
+                },
+                "saved_models/diffusion.pth",
+            )
+            torch.save(
+                {
+                    "model_state_dict": Norm.state_dict(),
+                },
+                "saved_models/normalizer.pth",
+            )
 
     if args["flags"]["sample_diffusion"]:
         
@@ -198,10 +260,9 @@ def main():
             ]
         )
         true_labels, pred_labels, true_labels_speaker, pred_labels_speaker = (
-            eval_class_pred_diff(
+            eval_class_pred_diff_scheduler(
                 test_dataset,
                 vae,
-                Norm,
                 diffusion_model,
                 args["model_parameters"]["diffusion_steps"],
                 device,
