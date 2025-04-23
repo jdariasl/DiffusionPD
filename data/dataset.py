@@ -31,7 +31,7 @@ class Pataka_Dataset(Dataset):
         self.DBs = DBs
         self.mode = mode
         self.paths, self.labels, self.speaker_ids, self.dbs_id = self.read_data()
-        print_speakers(self.paths)
+        #print_speakers(self.paths)
         (   self.y_label,
             self.subject_group,
             self.db_group,
@@ -175,7 +175,7 @@ class Pataka_Dataset(Dataset):
             indx = np.random.permutation(len(self.speaker_ids))[
                 int(self.train_size * len(self.speaker_ids)) :
             ]
-
+        print(f'mode {self.mode}, Index patients: {indx}')
         subj_ind = np.isin(subject_group, indx).astype(int)
         y_label = y_label[subj_ind == 1]
         subject_group = subject_group[subj_ind == 1]

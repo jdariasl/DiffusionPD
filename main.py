@@ -98,7 +98,7 @@ def main():
                 vae=vae, 
         )
         #save vae
-        vae.save(
+        torch.save(
             {
                 "model_state_dict": vae.state_dict(),
             },
