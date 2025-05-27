@@ -198,17 +198,6 @@ def main():
 
     if args["flags"]["sample_diffusion"]:
 
-        # load normalizer
-        Norm = BatchNormlizer(num_features=args["model_parameters"]["latent_dim"]).to(
-            device
-        )
-        Norm.load_state_dict(
-            torch.load("saved_models/normalizer.pth", map_location=device)[
-                "model_state_dict"
-            ]
-        )
-        Norm.eval()
-
         # load diffusion model
         diffusion_model = UNet(
             in_channels=args["model_parameters"]["in_channels"],
@@ -225,7 +214,6 @@ def main():
         # test diffusion model
         sample_plot_image_scheduler(
             vae,
-            Norm,
             diffusion_model,
             args["model_parameters"]["diffusion_steps"],
             args["model_parameters"]["latent_dim"],
