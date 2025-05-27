@@ -12,6 +12,8 @@ from utils.utils import (
     eval_class_pred_diff_scheduler,
     read_config,
     sample_plot_image_scheduler,
+    plot_kde_and_roc,
+    pred_T_effect,
 )
 from models.unet import UNet, BatchNormlizer
 from sklearn.metrics import classification_report
@@ -50,7 +52,7 @@ def main():
             ]
         )
     else:
-       
+
         vae_dataset = Pataka_Dataset(
             DBs=["Gita", "Neurovoz", "Saarbruecken"],
             train_size=0.91,
@@ -71,7 +73,8 @@ def main():
                 z_dim=args["model_parameters"]["latent_dim"],
                 epochs=args["optimization_parameters"]["num_epochs_vae"],
                 lr=args["optimization_parameters"]["learning_rate_vae"],
-                device=device)
+                device=device,
+            )
         elif args["flags"]["resume_training_vae"]:
             # load pretrained VAE model
             vae = VAE(
@@ -84,7 +87,7 @@ def main():
                 ]
             )
             vae.train()
-            
+
             # train VAE from scratch
             vae = train_vae(
                 vae_dataset,
@@ -95,9 +98,9 @@ def main():
                 lr=args["optimization_parameters"]["learning_rate_vae"],
                 device=device,
                 resume_training=True,
-                vae=vae, 
-        )
-        #save vae
+                vae=vae,
+            )
+        # save vae
         torch.save(
             {
                 "model_state_dict": vae.state_dict(),
@@ -144,9 +147,9 @@ def main():
                     init_features=args["model_parameters"]["latent_dim"],
                 ).to(device)
                 diffusion_model.load_state_dict(
-                    torch.load(args["paths"]["diffusion_model_path"], map_location=device)[
-                        "model_state_dict"
-                    ]
+                    torch.load(
+                        args["paths"]["diffusion_model_path"], map_location=device
+                    )["model_state_dict"]
                 )
                 diffusion_model, Norm = train_diffusion(
                     vae,
@@ -192,8 +195,8 @@ def main():
             )
 
     if args["flags"]["sample_diffusion"]:
-        
-        #load normalizer
+
+        # load normalizer
         Norm = BatchNormlizer(num_features=args["model_parameters"]["latent_dim"]).to(
             device
         )
@@ -203,7 +206,7 @@ def main():
             ]
         )
         Norm.eval()
-        
+
         # load diffusion model
         diffusion_model = UNet(
             in_channels=args["model_parameters"]["in_channels"],
@@ -237,16 +240,16 @@ def main():
         # )
 
     if args["flags"]["eval_classpred"]:
-        #load normalizer
-        Norm = BatchNormlizer(num_features=args["model_parameters"]["latent_dim"]).to(
-            device
-        )
-        Norm.load_state_dict(
-            torch.load("saved_models/normalizer.pth", map_location=device)[
-                "model_state_dict"
-            ]
-        )
-        Norm.eval()
+        # load normalizer
+        # Norm = BatchNormlizer(num_features=args["model_parameters"]["latent_dim"]).to(
+        #    device
+        # )
+        # Norm.load_state_dict(
+        #    torch.load("saved_models/normalizer.pth", map_location=device)[
+        #        "model_state_dict"
+        #    ]
+        # )
+        # Norm.eval()
         # load diffusion model
         diffusion_model = UNet(
             in_channels=args["model_parameters"]["in_channels"],
@@ -255,19 +258,31 @@ def main():
             init_features=args["model_parameters"]["latent_dim"],
         ).to(device)
         diffusion_model.load_state_dict(
-            torch.load("saved_models/diffusion.pth", map_location=device)[
+            torch.load(args["paths"]["diffusion_model_path"], map_location=device)[
                 "model_state_dict"
             ]
         )
-        true_labels, pred_labels, true_labels_speaker, pred_labels_speaker = (
-            eval_class_pred_diff_scheduler(
-                test_dataset,
-                vae,
-                diffusion_model,
-                args["model_parameters"]["diffusion_steps"],
-                device,
-                pred_T=args["model_parameters"]["pred_diff_time"],
-            )
+        (
+            true_labels,
+            pred_labels,
+            scores,
+            true_labels_speaker,
+            pred_labels_speaker,
+            scores_speaker,
+        ) = eval_class_pred_diff_scheduler(
+            test_dataset,
+            vae,
+            diffusion_model,
+            args["model_parameters"]["diffusion_steps"],
+            device,
+            pred_T=args["model_parameters"]["pred_diff_time"],
+        )
+        plot_kde_and_roc(
+            true_labels.detach().numpy(),
+            scores.detach().numpy(),
+            true_labels_speaker.detach().numpy(),
+            scores_speaker.detach().numpy(),
+            filename="performance_plot.png",
         )
         print("Frame-based Classification report:")
         print(
@@ -282,6 +297,28 @@ def main():
             )
         )
 
+    if args["flags"]["pred_T_effect"]:
+
+        # load diffusion model
+        diffusion_model = UNet(
+            in_channels=args["model_parameters"]["in_channels"],
+            out_channels=1,
+            num_classes=4,
+            init_features=args["model_parameters"]["latent_dim"],
+        ).to(device)
+        diffusion_model.load_state_dict(
+            torch.load(args["paths"]["diffusion_model_path"], map_location=device)[
+                "model_state_dict"
+            ]
+        )
+        AUC, AUC_speaker, Accuracy, Accuracy_speaker = pred_T_effect(
+            test_dataset,
+            vae,
+            diffusion_model,
+            args["model_parameters"]["diffusion_steps"],
+            device,
+        )
+        print("AUC: ", AUC)
     return
 
 
