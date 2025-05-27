@@ -134,10 +134,9 @@ def get_index_from_list(vals, t, x_shape):
 
 @torch.no_grad()
 def sample_plot_image_scheduler(
-    vae, norm, model, T, latent_dim, device, save_path, n=10, return_image=False
+    vae, model, T, latent_dim, device, save_path, n=10, return_image=False
 ):
     vae.eval()
-    norm.eval()
     noise_scheduler = DDPMScheduler(
         num_train_timesteps=T,
         beta_schedule="linear",
@@ -152,12 +151,7 @@ def sample_plot_image_scheduler(
         device=device,
         num_inference_steps=T,
     )
-    # print(image.max(), image.min(), image.mean())
-    # print(norm.batch_norm.bias)
-    image = ((image - norm.batch_norm.bias) / norm.batch_norm.weight) * torch.sqrt(
-        norm.batch_norm.running_var + norm.batch_norm.eps
-    ) + norm.batch_norm.running_mean
-    # print(image.max(), image.min(), image.mean())
+    
     img = vae.decode(image)
     for j in range(n):
         img_j = img[j].unsqueeze(0)
