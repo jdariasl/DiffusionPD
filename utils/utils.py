@@ -4,6 +4,9 @@ import torch.nn.functional as F
 import json
 from diffusers import DDPMScheduler
 from train.sampler_diffusion import Class_DDPMPipeline
+import matplotlib.pyplot as plt
+import seaborn as sns
+from sklearn.metrics import roc_curve, roc_auc_score
 
 
 def read_config(file_path):
@@ -34,7 +37,7 @@ def test_vae(
     print(save_path)
     vae.eval()
     with torch.no_grad():
-        for i, (data_o,data, _, _, _) in enumerate(test_loader):
+        for i, (data_o, data, _, _, _) in enumerate(test_loader):
             data = data.to(device)
             data_o = data_o.to(device)
             mu, _ = vae.encode(data)
@@ -130,7 +133,9 @@ def get_index_from_list(vals, t, x_shape):
 
 
 @torch.no_grad()
-def sample_plot_image_scheduler(vae, norm, model, T, latent_dim, device, save_path, n=10, return_image=False):
+def sample_plot_image_scheduler(
+    vae, norm, model, T, latent_dim, device, save_path, n=10, return_image=False
+):
     vae.eval()
     norm.eval()
     noise_scheduler = DDPMScheduler(
@@ -147,18 +152,20 @@ def sample_plot_image_scheduler(vae, norm, model, T, latent_dim, device, save_pa
         device=device,
         num_inference_steps=T,
     )
-    #print(image.max(), image.min(), image.mean())
-    #print(norm.batch_norm.bias)
-    image = ((image-norm.batch_norm.bias)/norm.batch_norm.weight)*torch.sqrt(norm.batch_norm.running_var +norm.batch_norm.eps) + norm.batch_norm.running_mean
-    #print(image.max(), image.min(), image.mean())
+    # print(image.max(), image.min(), image.mean())
+    # print(norm.batch_norm.bias)
+    image = ((image - norm.batch_norm.bias) / norm.batch_norm.weight) * torch.sqrt(
+        norm.batch_norm.running_var + norm.batch_norm.eps
+    ) + norm.batch_norm.running_mean
+    # print(image.max(), image.min(), image.mean())
     img = vae.decode(image)
     for j in range(n):
         img_j = img[j].unsqueeze(0)
         img_j = torch.clamp(img_j, -1.0, 1.0)
 
         save_image(img_j.cpu(), save_path + "diff_samples_" + str(j) + ".png")
-        if return_image and j==n-1:
-            return img_j.cpu()         
+        if return_image and j == n - 1:
+            return img_j.cpu()
     return
 
 
@@ -270,16 +277,18 @@ def sample_timestep(
         noise = torch.randn_like(x)
         return model_mean + torch.sqrt(posterior_variance_t) * noise
 
+
 @torch.no_grad()
-def eval_class_pred_diff_scheduler(test_loader, vae, model, time_steps, device, pred_T=50
+def eval_class_pred_diff_scheduler(
+    test_loader, vae, model, time_steps, device, pred_T=50
 ):
     model.eval()
-    
+
     pred_labels = []
     true_labels = []
     speakers = []
     scores = []
-    
+
     # set constant diffusion parameters
     noise_scheduler = DDPMScheduler(
         num_train_timesteps=time_steps,
@@ -287,7 +296,7 @@ def eval_class_pred_diff_scheduler(test_loader, vae, model, time_steps, device, 
         beta_start=0.0015,
         beta_end=0.0195,
     )
-    
+
     pipeline = Class_DDPMPipeline(unet=model, scheduler=noise_scheduler)
     test_loss = 0
     with torch.no_grad():
@@ -295,7 +304,7 @@ def eval_class_pred_diff_scheduler(test_loader, vae, model, time_steps, device, 
             data = data.to(device)
             mu, _ = vae.encode(data)
             mu = mu.to(device)
-            #mu = Norm(mu)
+            # mu = Norm(mu)
             true_labels.append(label)
             speakers.append(speaker_id)
             label = torch.ones(mu.shape[0], dtype=torch.int64).to(device)
@@ -304,7 +313,7 @@ def eval_class_pred_diff_scheduler(test_loader, vae, model, time_steps, device, 
                 class_labels=label,
                 num_inference_steps=pred_T,
                 generator=torch.Generator(device="cpu").manual_seed(1234),
-                device=device
+                device=device,
             )
 
             label_not = (~label.bool()).long().to(device)
@@ -313,7 +322,7 @@ def eval_class_pred_diff_scheduler(test_loader, vae, model, time_steps, device, 
                 class_labels=label_not,
                 num_inference_steps=pred_T,
                 generator=torch.Generator(device="cpu").manual_seed(1234),
-                device=device
+                device=device,
             )
 
             pred_score = -1 * (
@@ -337,13 +346,22 @@ def eval_class_pred_diff_scheduler(test_loader, vae, model, time_steps, device, 
         pred_labels_speaker.append((scores_speaker[i] > 0).long())
     true_labels_speaker = torch.stack(true_labels_speaker)
     pred_labels_speaker = torch.stack(pred_labels_speaker)
+    scores_speaker = torch.stack(scores_speaker)
 
-    return true_labels, pred_labels, true_labels_speaker, pred_labels_speaker
+    return (
+        true_labels,
+        pred_labels,
+        scores,
+        true_labels_speaker,
+        pred_labels_speaker,
+        scores_speaker,
+    )
+
 
 @torch.no_grad()
-def eval_class_pred_diff(test_loader, vae, norm, model, T, device, pred_T=50):
+def eval_class_pred_diff(test_loader, vae, model, T, device, pred_T=50):
     vae.eval()
-    norm.eval()
+    # norm.eval()
     model.eval()
 
     pred_labels = []
@@ -357,7 +375,7 @@ def eval_class_pred_diff(test_loader, vae, norm, model, T, device, pred_T=50):
             speakers.append(speaker_id)
             data = data.to(device)
             mu, _ = vae.encode(data)
-            mu = norm(mu)
+            # mu = norm(mu)
             true_labels.append(label)
             label = torch.ones(mu.shape[0], dtype=torch.int64).to(device)
             t = pred_T * torch.ones(mu.shape[0], dtype=torch.int64).to(device)
@@ -393,5 +411,141 @@ def eval_class_pred_diff(test_loader, vae, norm, model, T, device, pred_T=50):
         pred_labels_speaker.append((scores_speaker[i] > 0).long())
     true_labels_speaker = torch.stack(true_labels_speaker)
     pred_labels_speaker = torch.stack(pred_labels_speaker)
+    scores_speaker = torch.stack(scores_speaker)
 
-    return true_labels, pred_labels, true_labels_speaker, pred_labels_speaker
+    return (
+        true_labels,
+        pred_labels,
+        scores,
+        true_labels_speaker,
+        pred_labels_speaker,
+        scores_speaker,
+    )
+
+
+def plot_kde_and_roc(
+    true_labels,
+    pred_labels,
+    true_labels_speaker,
+    pred_labels_speaker,
+    filename="performance_plot.png",
+):
+    sns.set_theme(style="whitegrid")
+
+    # Create subplots
+    fig, axes = plt.subplots(2, 2, figsize=(14, 10))
+
+    # Instance-level KDE and histogram
+    ax1 = axes[0, 0]
+    pos_scores = [p for t, p in zip(true_labels, pred_labels) if t == 1]
+    neg_scores = [p for t, p in zip(true_labels, pred_labels) if t == 0]
+
+    sns.histplot(
+        pos_scores,
+        kde=True,
+        stat="density",
+        bins=30,
+        color="blue",
+        label="Positive",
+        ax=ax1,
+    )
+    sns.histplot(
+        neg_scores,
+        kde=True,
+        stat="density",
+        bins=30,
+        color="red",
+        label="Negative",
+        ax=ax1,
+    )
+    ax1.set_title("Instance-level KDE and Histogram")
+    ax1.set_xlabel("Prediction Score")
+    ax1.legend()
+
+    # Speaker-level KDE and histogram
+    ax2 = axes[0, 1]
+    pos_scores_speaker = [
+        p for t, p in zip(true_labels_speaker, pred_labels_speaker) if t == 1
+    ]
+    neg_scores_speaker = [
+        p for t, p in zip(true_labels_speaker, pred_labels_speaker) if t == 0
+    ]
+
+    sns.histplot(
+        pos_scores_speaker,
+        kde=True,
+        stat="density",
+        bins=30,
+        color="blue",
+        label="Positive",
+        ax=ax2,
+    )
+    sns.histplot(
+        neg_scores_speaker,
+        kde=True,
+        stat="density",
+        bins=30,
+        color="red",
+        label="Negative",
+        ax=ax2,
+    )
+    ax2.set_title("Speaker-level KDE and Histogram")
+    ax2.set_xlabel("Prediction Score")
+    ax2.legend()
+
+    # Instance-level ROC curve
+    ax3 = axes[1, 0]
+    fpr, tpr, _ = roc_curve(true_labels, pred_labels)
+    auc_score = roc_auc_score(true_labels, pred_labels)
+    ax3.plot(fpr, tpr, color="blue", label=f"ROC curve (AUC = {auc_score:.2f})")
+    ax3.plot([0, 1], [0, 1], linestyle="--", color="gray")
+    ax3.set_title("Instance-level ROC Curve")
+    ax3.set_xlabel("False Positive Rate")
+    ax3.set_ylabel("True Positive Rate")
+    ax3.legend()
+
+    # Speaker-level ROC curve
+    ax4 = axes[1, 1]
+    fpr_speaker, tpr_speaker, _ = roc_curve(true_labels_speaker, pred_labels_speaker)
+    auc_speaker = roc_auc_score(true_labels_speaker, pred_labels_speaker)
+    ax4.plot(
+        fpr_speaker,
+        tpr_speaker,
+        color="blue",
+        label=f"ROC curve (AUC = {auc_speaker:.2f})",
+    )
+    ax4.plot([0, 1], [0, 1], linestyle="--", color="gray")
+    ax4.set_title("Speaker-level ROC Curve")
+    ax4.set_xlabel("False Positive Rate")
+    ax4.set_ylabel("True Positive Rate")
+    ax4.legend()
+
+    plt.tight_layout()
+    plt.savefig(filename)
+    plt.close()
+
+
+def pred_T_effect(test_loader, vae, model, T, device):
+    AUC = []
+    AUC_speaker = []
+    Accuracy = []
+    Accuracy_speaker = []
+    for pred_T in range(1, 11):
+        (
+            true_labels,
+            pred_labels,
+            scores,
+            true_labels_speaker,
+            pred_labels_speaker,
+            scores_speaker,
+        ) = eval_class_pred_diff_scheduler(
+            test_loader, vae, model, T, device, pred_T=pred_T
+        )
+
+        Accuracy.append((true_labels == pred_labels).float().mean())
+        Accuracy_speaker.append(
+            (true_labels_speaker == pred_labels_speaker).float().mean()
+        )
+        AUC.append(roc_auc_score(true_labels, scores))
+        AUC_speaker.append(roc_auc_score(true_labels_speaker, scores_speaker))
+    return AUC, AUC_speaker, Accuracy, Accuracy_speaker
