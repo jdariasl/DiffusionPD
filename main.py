@@ -145,7 +145,7 @@ def main():
                     "model_state_dict"
                 ]
             )
-            diffusion_model, _ = train_diffusion(
+            diffusion_model = train_diffusion(
                 vae,
                 args["model_parameters"]["diffusion_steps"],
                 diff_dataset,
@@ -161,7 +161,7 @@ def main():
                 model=diffusion_model,
             )
         else:
-            diffusion_model, _ = train_diffusion(
+            diffusion_model = train_diffusion(
                 vae,
                 args["model_parameters"]["diffusion_steps"],
                 diff_dataset,
@@ -181,12 +181,6 @@ def main():
             },
             "saved_models/diffusion.pth",
         )
-        # torch.save(
-        #    {
-        #        "model_state_dict": Norm.state_dict(),
-        #    },
-        #    "saved_models/normalizer.pth",
-        # )
 
     if args["flags"]["sample_diffusion"]:
 
@@ -222,16 +216,6 @@ def main():
         # )
 
     if args["flags"]["eval_classpred"]:
-        # load normalizer
-        # Norm = BatchNormlizer(num_features=args["model_parameters"]["latent_dim"]).to(
-        #    device
-        # )
-        # Norm.load_state_dict(
-        #    torch.load("saved_models/normalizer.pth", map_location=device)[
-        #        "model_state_dict"
-        #    ]
-        # )
-        # Norm.eval()
         # load diffusion model
         diffusion_model = UNet(
             in_channels=args["model_parameters"]["in_channels"],
