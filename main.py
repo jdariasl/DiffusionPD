@@ -100,14 +100,6 @@ def main():
                 resume_training=True,
                 vae=vae,
             )
-        # save vae
-        # Best model is save during training
-        # torch.save(
-        #    {
-        #        "model_state_dict": vae.state_dict(),
-        #    },
-        #    "saved_models/vae.pth",
-        # )
 
     # test vae reconstructions quality
     if args["flags"]["test_vae"]:
