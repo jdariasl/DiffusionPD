@@ -151,7 +151,7 @@ def sample_plot_image_scheduler(
         device=device,
         num_inference_steps=T,
     )
-    
+
     img = vae.decode(image)
     for j in range(n):
         img_j = img[j].unsqueeze(0)
@@ -298,6 +298,13 @@ def eval_class_pred_diff_scheduler(
             data = data.to(device)
             mu, _ = vae.encode(data)
             mu = mu.to(device)
+
+            noise = torch.randn_like(mu).to(device)
+            mu = noise_scheduler.add_noise(
+                mu,
+                noise,
+                pred_T * torch.ones(mu.shape[0], dtype=torch.int64).to(device),
+            )
             # mu = Norm(mu)
             true_labels.append(label)
             speakers.append(speaker_id)
@@ -524,7 +531,7 @@ def pred_T_effect(test_loader, vae, model, T, device):
     AUC_speaker = []
     Accuracy = []
     Accuracy_speaker = []
-    for pred_T in range(1, 11):
+    for pred_T in range(1, 21):
         (
             true_labels,
             pred_labels,
@@ -542,4 +549,5 @@ def pred_T_effect(test_loader, vae, model, T, device):
         )
         AUC.append(roc_auc_score(true_labels, scores))
         AUC_speaker.append(roc_auc_score(true_labels_speaker, scores_speaker))
+        print(f"Pred_T:{pred_T}, done!")
     return AUC, AUC_speaker, Accuracy, Accuracy_speaker

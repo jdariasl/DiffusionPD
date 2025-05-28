@@ -107,7 +107,7 @@ class Class_DDPMPipeline(DiffusionPipeline):
             for t in self.scheduler.timesteps[-num_inference_steps:]:
                 # 1. predict noise model_output
                 t2 = t * torch.ones(image.shape[0], dtype=torch.int64)
-                
+
                 model_output = model(image.to(device), label.to(device), t2.to(device))
 
                 # 2. compute previous image: x_t -> x_t-1
@@ -120,15 +120,15 @@ class Class_DDPMPipeline(DiffusionPipeline):
         if not classification:
             self.scheduler.set_timesteps(num_inference_steps)
 
-        for t in self.scheduler.timesteps:
-            model = self.unet.to(device)
-            # 1. predict noise model_output
-            t2 = t * torch.ones(image.shape[0], dtype=torch.int64).to(device)
-            model_output = model(image.to(device), label.to(device), t2.to(device))
+            for t in self.scheduler.timesteps:
+                model = self.unet.to(device)
+                # 1. predict noise model_output
+                t2 = t * torch.ones(image.shape[0], dtype=torch.int64).to(device)
+                model_output = model(image.to(device), label.to(device), t2.to(device))
 
-            # 2. compute previous image: x_t -> x_t-1
-            image = self.scheduler.step(
-                model_output, t, image, generator=generator
-            ).prev_sample
+                # 2. compute previous image: x_t -> x_t-1
+                image = self.scheduler.step(
+                    model_output, t, image, generator=generator
+                ).prev_sample
 
-        return image
+            return image

@@ -301,6 +301,9 @@ def main():
             device,
         )
         print("AUC: ", AUC)
+        print("AUC Speaker: ", AUC_speaker)
+        print("Accuracy: ", Accuracy)
+        print("Accuracy Speaker: ", Accuracy_speaker)
     return
 
 
