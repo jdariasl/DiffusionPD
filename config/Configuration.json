@@ -1,8 +1,8 @@
 {
   "model_parameters": {
     "in_channels": 1,
-    "diffusion_steps": 1000,
-    "latent_dim": 64,
+    "diffusion_steps": 200,
+    "latent_dim": 128,
     "pred_diff_time": 50,
     "diff_schedule": "DDPM" 
   },
@@ -11,19 +11,21 @@
     "num_epochs_vae": 100,
     "num_epochs_diff": 500,
     "device": 1,
-    "seed": 1234,
+    "seed": 151617,
     "learning_rate_vae": 2e-5,
     "lr_warmup_steps" : 200,
     "learning_rate_diff": 1e-6,
     "weight_decay": 0.1e-7
   },
   "flags": {
-    "resume_training": false,
-    "train_vae": false,
+    "resume_training_vae": false,
+    "train_vae": true,
     "test_vae": false,
-    "train_diffusion": false,
-    "sample_diffusion": true,
-    "eval_classpred": false
+    "resume_training_diff": false,
+    "train_diffusion": true,
+    "sample_diffusion": false,
+    "eval_classpred": true,
+    "pred_T_effect": false
   },
   "paths": {
     "vae_model_path": "saved_models/vae.pth",
