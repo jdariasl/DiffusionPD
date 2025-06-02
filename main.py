@@ -244,10 +244,10 @@ def main():
             pred_T=args["model_parameters"]["pred_diff_time"],
         )
         plot_kde_and_roc(
-            true_labels.detach().numpy(),
-            scores.detach().numpy(),
-            true_labels_speaker.detach().numpy(),
-            scores_speaker.detach().numpy(),
+            true_labels.detach().cpu().numpy(),
+            scores.detach().cpu().numpy(),
+            true_labels_speaker.detach().cpu().numpy(),
+            scores_speaker.detach().cpu().numpy(),
             filename="performance_plot.png",
         )
         print("Frame-based Classification report:")
