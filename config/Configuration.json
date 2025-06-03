@@ -1,9 +1,9 @@
 {
   "model_parameters": {
     "in_channels": 1,
-    "diffusion_steps": 1000,
-    "latent_dim": 64,
-    "pred_diff_time": 50,
+    "diffusion_steps": 200,
+    "latent_dim": 128,
+    "pred_diff_time": 100,
     "diff_schedule": "DDPM" 
   },
   "optimization_parameters": {
@@ -22,12 +22,14 @@
     "train_vae": false,
     "test_vae": false,
     "train_diffusion": false,
-    "sample_diffusion": true,
-    "eval_classpred": false
+    "sample_diffusion": false,
+    "eval_classpred": false,
+    "pred_T_effect": false,
+    "get_embeddings": true
   },
   "paths": {
-    "vae_model_path": "saved_models/vae.pth",
-    "diffusion_model_path": "saved_models/diffusion.pth"
+    "vae_model_path": "saved_models/vae_seed_1234.pth",
+    "diffusion_model_path": "saved_models/diffusion_seed_1234.pth"
   }
 }
 
