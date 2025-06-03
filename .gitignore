@@ -178,3 +178,6 @@ cython_debug/
 
 #Local config file
 *.json
+
+# Local data files
+*.npy
