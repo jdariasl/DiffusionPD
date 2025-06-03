@@ -7,6 +7,7 @@ from train.sampler_diffusion import Class_DDPMPipeline
 import matplotlib.pyplot as plt
 import seaborn as sns
 from sklearn.metrics import roc_curve, roc_auc_score
+import numpy as np
 
 
 def read_config(file_path):
@@ -299,12 +300,12 @@ def eval_class_pred_diff_scheduler(
             mu, _ = vae.encode(data)
             mu = mu.to(device)
 
-            noise = torch.randn_like(mu).to(device)
-            mu = noise_scheduler.add_noise(
-                mu,
-                noise,
-                pred_T * torch.ones(mu.shape[0], dtype=torch.int64).to(device),
-            )
+            # noise = torch.randn_like(mu).to(device)
+            # mu = noise_scheduler.add_noise(
+            #    mu,
+            #    noise,
+            #    pred_T * torch.ones(mu.shape[0], dtype=torch.int64).to(device),
+            # )
             # mu = Norm(mu)
             true_labels.append(label)
             speakers.append(speaker_id)
@@ -531,7 +532,7 @@ def pred_T_effect(test_loader, vae, model, T, device):
     AUC_speaker = []
     Accuracy = []
     Accuracy_speaker = []
-    for pred_T in range(1, 21):
+    for pred_T in range(51, 101):
         (
             true_labels,
             pred_labels,
@@ -551,3 +552,66 @@ def pred_T_effect(test_loader, vae, model, T, device):
         AUC_speaker.append(roc_auc_score(true_labels_speaker, scores_speaker))
         print(f"Pred_T:{pred_T}, done!")
     return AUC, AUC_speaker, Accuracy, Accuracy_speaker
+
+
+@torch.no_grad()
+def get_bottleneck_embeddings(data_loader, vae, model, time_steps, device, pred_T=50):
+    model.eval()
+
+    embeddings = []
+    generated_vectors = []
+    true_vectors = []
+    true_labels = []
+    speakers = []
+
+    # set constant diffusion parameters
+    noise_scheduler = DDPMScheduler(
+        num_train_timesteps=time_steps,
+        beta_schedule="linear",
+        beta_start=0.0015,
+        beta_end=0.0195,
+    )
+
+    pipeline = Class_DDPMPipeline(unet=model, scheduler=noise_scheduler)
+    with torch.no_grad():
+        for i, (data, _, label, speaker_id, _) in enumerate(data_loader):
+            data = data.to(device)
+            mu, _ = vae.encode(data)
+            mu = mu.to(device)
+
+            # noise = torch.randn_like(mu).to(device)
+            # mu = noise_scheduler.add_noise(
+            #    mu,
+            #    noise,
+            #    pred_T * torch.ones(mu.shape[0], dtype=torch.int64).to(device),
+            # )
+            # mu = Norm(mu)
+            label = label.long().to(device)
+            speakers.append(speaker_id.detach().numpy())
+            recover_spec, bottleneck = pipeline(
+                init_samples=mu,
+                class_labels=label,
+                num_inference_steps=pred_T,
+                generator=torch.Generator(device="cpu").manual_seed(1234),
+                return_bottleneck=True,
+                device=device,
+            )
+            true_labels.append(label.detach().numpy())
+            true_vectors.append(mu.detach().numpy())
+            generated_vectors.append(recover_spec.detach().numpy())
+            embeddings.append(bottleneck.detach().numpy())
+
+    true_labels = np.concatenate(true_labels)
+    speakers = np.concatenate(speakers)
+    embeddings = np.concatenate(embeddings)
+    embeddings = embeddings.reshape(embeddings.shape[0], -1)  # Flatten if needed
+    true_vectors = np.concatenate(true_vectors)
+    generated_vectors = np.concatenate(generated_vectors)
+
+    return (
+        embeddings,
+        true_vectors,
+        generated_vectors,
+        true_labels,
+        speakers,
+    )

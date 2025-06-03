@@ -39,6 +39,7 @@ class Class_DDPMPipeline(DiffusionPipeline):
         class_labels: Optional[torch.LongTensor] = None,
         generator: Optional[torch.Generator] = None,
         num_inference_steps: int = 100,
+        return_bottleneck: bool = False,
         device: Optional[torch.device] = None,
     ):
         r"""
@@ -104,6 +105,7 @@ class Class_DDPMPipeline(DiffusionPipeline):
 
         if classification:
             model = self.unet.to(device)
+            last_t = self.scheduler.timesteps[-2]
             for t in self.scheduler.timesteps[-num_inference_steps:]:
                 # 1. predict noise model_output
                 t2 = t * torch.ones(image.shape[0], dtype=torch.int64)
@@ -114,6 +116,26 @@ class Class_DDPMPipeline(DiffusionPipeline):
                 image = self.scheduler.step(
                     model_output, t, image, generator=generator
                 ).prev_sample
+                if t == last_t:
+                    # if we are at the last step, we return the image
+                    if return_bottleneck:
+                        t2 = self.scheduler.timesteps[-1] * torch.ones(
+                            image.shape[0], dtype=torch.int64
+                        )
+                        bottleneck, _, _, _, _, _, _ = model.encode(
+                            image.to(device), label.to(device), t2.to(device)
+                        )
+                        model_output = model(
+                            image.to(device), label.to(device), t2.to(device)
+                        )
+
+                        # 2. compute previous image: x_t -> x_t-1
+                        image = self.scheduler.step(
+                            model_output, t, image, generator=generator
+                        ).prev_sample
+                        return image, bottleneck
+                else:
+                    pass
             return image
 
         # set step values

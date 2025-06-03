@@ -1,5 +1,6 @@
 #!/usr/bin/env python -W ignore::DeprecationWarning
 import torch
+import numpy as np
 from data.dataset import Pataka_Dataset
 from train.train_vae import train_vae
 from train.train_diffusion import train_diffusion
@@ -14,6 +15,7 @@ from utils.utils import (
     sample_plot_image_scheduler,
     plot_kde_and_roc,
     pred_T_effect,
+    get_bottleneck_embeddings,
 )
 from models.unet import UNet, BatchNormlizer
 from sklearn.metrics import classification_report
@@ -312,6 +314,74 @@ def main():
         print("AUC Speaker: ", AUC_speaker)
         print("Accuracy: ", Accuracy)
         print("Accuracy Speaker: ", Accuracy_speaker)
+
+    if args["flags"]["get_embeddings"]:
+        # train diffusion model
+        diff_dataset = Pataka_Dataset(
+            DBs=["Gita", "Neurovoz"],
+            train_size=0.91,
+            mode="train",
+            seed=SEED,
+        )
+        diff_dataset = torch.utils.data.DataLoader(
+            diff_dataset,
+            batch_size=args["optimization_parameters"]["batch_size"],
+            shuffle=False,
+        )
+        # load diffusion model
+        diffusion_model = UNet(
+            in_channels=args["model_parameters"]["in_channels"],
+            out_channels=1,
+            num_classes=4,
+            init_features=args["model_parameters"]["latent_dim"],
+        ).to(device)
+        diffusion_model.load_state_dict(
+            torch.load(args["paths"]["diffusion_model_path"], map_location=device)[
+                "model_state_dict"
+            ]
+        )
+        # get embeddings
+        (
+            train_embeddings,
+            train_true_vectors,
+            train_generated_vectors,
+            train_true_labels,
+            train_speakers,
+        ) = get_bottleneck_embeddings(
+            diff_dataset,
+            vae,
+            diffusion_model,
+            args["model_parameters"]["diffusion_steps"],
+            device,
+            pred_T=args["model_parameters"]["pred_diff_time"],
+        )
+        (
+            test_embeddings,
+            test_true_vectors,
+            test_generated_vectors,
+            test_true_labels,
+            test_speakers,
+        ) = get_bottleneck_embeddings(
+            test_dataset,
+            vae,
+            diffusion_model,
+            args["model_parameters"]["diffusion_steps"],
+            device,
+            pred_T=args["model_parameters"]["pred_diff_time"],
+        )
+        # save numpy arrays
+        np.save("saved_embeddings/train_embeddings.npy", train_embeddings)
+        np.save("saved_embeddings/train_true_vectors.npy", train_true_vectors)
+        np.save("saved_embeddings/train_generated_vectors.npy", train_generated_vectors)
+        np.save("saved_embeddings/train_true_labels.npy", train_true_labels)
+        np.save("saved_embeddings/train_speakers.npy", train_speakers)
+        np.save("saved_embeddings/test_embeddings.npy", test_embeddings)
+        np.save("saved_embeddings/test_true_vectors.npy", test_true_vectors)
+        np.save("saved_embeddings/test_generated_vectors.npy", test_generated_vectors)
+        np.save("saved_embeddings/test_true_labels.npy", test_true_labels)
+        np.save("saved_embeddings/test_speakers.npy", test_speakers)
+        print("Embeddings saved successfully.")
+
     return
 
 
