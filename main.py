@@ -102,14 +102,6 @@ def main():
                 resume_training=True,
                 vae=vae,
             )
-        # save vae
-        # Best model is save during training
-        # torch.save(
-        #    {
-        #        "model_state_dict": vae.state_dict(),
-        #    },
-        #    "saved_models/vae.pth",
-        # )
 
     # test vae reconstructions quality
     if args["flags"]["test_vae"]:
@@ -155,7 +147,7 @@ def main():
                     "model_state_dict"
                 ]
             )
-            diffusion_model, _ = train_diffusion(
+            diffusion_model = train_diffusion(
                 vae,
                 args["model_parameters"]["diffusion_steps"],
                 diff_dataset,
@@ -171,7 +163,7 @@ def main():
                 model=diffusion_model,
             )
         else:
-            diffusion_model, _ = train_diffusion(
+            diffusion_model = train_diffusion(
                 vae,
                 args["model_parameters"]["diffusion_steps"],
                 diff_dataset,
@@ -191,12 +183,6 @@ def main():
             },
             "saved_models/diffusion.pth",
         )
-        # torch.save(
-        #    {
-        #        "model_state_dict": Norm.state_dict(),
-        #    },
-        #    "saved_models/normalizer.pth",
-        # )
 
     if args["flags"]["sample_diffusion"]:
 
@@ -232,16 +218,6 @@ def main():
         # )
 
     if args["flags"]["eval_classpred"]:
-        # load normalizer
-        # Norm = BatchNormlizer(num_features=args["model_parameters"]["latent_dim"]).to(
-        #    device
-        # )
-        # Norm.load_state_dict(
-        #    torch.load("saved_models/normalizer.pth", map_location=device)[
-        #        "model_state_dict"
-        #    ]
-        # )
-        # Norm.eval()
         # load diffusion model
         diffusion_model = UNet(
             in_channels=args["model_parameters"]["in_channels"],
@@ -270,10 +246,10 @@ def main():
             pred_T=args["model_parameters"]["pred_diff_time"],
         )
         plot_kde_and_roc(
-            true_labels.detach().numpy(),
-            scores.detach().numpy(),
-            true_labels_speaker.detach().numpy(),
-            scores_speaker.detach().numpy(),
+            true_labels.detach().cpu().numpy(),
+            scores.detach().cpu().numpy(),
+            true_labels_speaker.detach().cpu().numpy(),
+            scores_speaker.detach().cpu().numpy(),
             filename="performance_plot.png",
         )
         print("Frame-based Classification report:")

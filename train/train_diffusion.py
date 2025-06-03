@@ -1,6 +1,6 @@
 import torch
 import torch.nn.functional as F
-from models.unet import UNet, BatchNormlizer
+from models.unet import UNet
 from utils.utils import set_diffusion_params, sample_plot_image_scheduler
 import torch.optim as optim
 from losses.losses import diff_loss
@@ -58,9 +58,6 @@ def train_diffusion(
             in_channels=x_dim, out_channels=1, num_classes=4, init_features=z_dim
         ).to(device)
 
-    Norm = BatchNormlizer(num_features=z_dim).to(device)
-    Norm.train()
-
     # set constant diffusion parameters
     noise_scheduler = DDPMScheduler(
         num_train_timesteps=time_steps,
@@ -91,7 +88,7 @@ def train_diffusion(
             with torch.no_grad():
                 mu, _ = vae.encode(data)
                 mu = mu.to(device)
-            # mu = Norm(mu)
+            
             optimizer.zero_grad()
             with torch.autocast(device_type="cuda"):
                 t = torch.randint(0, time_steps, (data.shape[0],)).to(device)
@@ -123,13 +120,12 @@ def train_diffusion(
         )
 
         test_loss = test_diffusion_scheduler(
-            vae, Norm, test_loader, model, noise_scheduler, device, pred_diff_time
+            vae, test_loader, model, noise_scheduler, device, pred_diff_time
         )
         # scheduler.step()
         # Log metrics to wandb.
         image = sample_plot_image_scheduler(
             vae,
-            Norm.eval(),
             model.eval(),
             time_steps,
             z_dim,
@@ -148,14 +144,13 @@ def train_diffusion(
             }
         )
     run.finish()
-    return model, Norm
+    return model
 
 
 def test_diffusion_scheduler(
-    vae, Norm, test_loader, model, noise_scheduler, device, T_pred=50
+    vae, test_loader, model, noise_scheduler, device, T_pred=50
 ):
     model.eval()
-    Norm.eval()
     pipeline = Class_DDPMPipeline(unet=model, scheduler=noise_scheduler)
     test_loss = 0
     with torch.no_grad():

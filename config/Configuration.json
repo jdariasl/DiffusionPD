@@ -11,15 +11,15 @@
     "num_epochs_vae": 100,
     "num_epochs_diff": 500,
     "device": 1,
-    "seed": 1234,
+    "seed": 151617,
     "learning_rate_vae": 2e-5,
     "lr_warmup_steps" : 200,
     "learning_rate_diff": 1e-6,
     "weight_decay": 0.1e-7
   },
   "flags": {
-    "resume_training": false,
-    "train_vae": false,
+    "resume_training_vae": false,
+    "train_vae": true,
     "test_vae": false,
     "train_diffusion": false,
     "sample_diffusion": false,
