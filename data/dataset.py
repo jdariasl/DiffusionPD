@@ -8,9 +8,9 @@ import numpy as np
 import random
 
 SAMPLE_RATE = 44100
-DATA_PATH_Gita = "/home/jarias@gaps_domain.ssr.upm.es/Experiments_EmiroIbarra/Parkinson_datasets/Gita/Pataka/"
-DATA_PATH_NeuroV = "/home/jarias@gaps_domain.ssr.upm.es/Experiments_EmiroIbarra/Parkinson_datasets/Neurovoz/PATAKA/"
-DATA_PATH_SaarB = "/home/jarias@gaps_domain.ssr.upm.es/Experiments_EmiroIbarra/Saarbruecken_dataset/vowel_a_resampled/"
+DATA_PATH_Gita = "/Volumes/Elements/Experiments/Experiments_EmiroIbarra/Parkinson_datasets/Gita/Pataka/"
+DATA_PATH_NeuroV = "/Volumes/Elements/Experiments/Experiments_EmiroIbarra/Parkinson_datasets/BDatos Neurovoz/PorMaterial_limpios1_2_downsized/PATAKA/"
+DATA_PATH_SaarB = "/Volumes/Elements/Experiments/Experiments_EmiroIbarra/Saarbruecken_dataset/vowel_a_resampled/"
 
 
 # /Users/julian/Documents/Bases de datos
@@ -31,8 +31,9 @@ class Pataka_Dataset(Dataset):
         self.DBs = DBs
         self.mode = mode
         self.paths, self.labels, self.speaker_ids, self.dbs_id = self.read_data()
-        #print_speakers(self.paths)
-        (   self.y_label,
+        # print_speakers(self.paths)
+        (
+            self.y_label,
             self.subject_group,
             self.db_group,
             self.segments_paths,
@@ -175,7 +176,7 @@ class Pataka_Dataset(Dataset):
             indx = np.random.permutation(len(self.speaker_ids))[
                 int(self.train_size * len(self.speaker_ids)) :
             ]
-        print(f'mode {self.mode}, Index patients: {indx}')
+        print(f"mode {self.mode}, Index patients: {indx}")
         subj_ind = np.isin(subject_group, indx).astype(int)
         y_label = y_label[subj_ind == 1]
         subject_group = subject_group[subj_ind == 1]
@@ -302,38 +303,48 @@ def compute_norm_spect(signal, sample_rate):
     mel_spectrograms_o = np.expand_dims(mel_spect_norm_o, 0)
     return mel_spectrograms, mel_spectrograms_o
 
-def augment_spectrogram(spectrogram, prob = 0.5, noise_factor=0.005, mask_percentage=0.1):
-    
+
+def augment_spectrogram(spectrogram, prob=0.5, noise_factor=0.005, mask_percentage=0.1):
+
     # Adding noise
     if random.random() > prob:
         noise = np.random.randn(*spectrogram.shape) * noise_factor
         spectrogram = spectrogram + noise
-    
+
     # Masking
     if random.random() > prob:
         num_masked_bins = int(mask_percentage * spectrogram.shape[0])
         mask_start = random.randint(0, spectrogram.shape[0] - num_masked_bins)
-        spectrogram[mask_start:mask_start + num_masked_bins, :] = 0
-    
+        spectrogram[mask_start : mask_start + num_masked_bins, :] = 0
+
     return spectrogram
 
-def augment_audio(signal, sample_rate, prob = 0.5, time_stretch_range=(0.8, 1.2), pitch_shift_range=(-2, 2)):
-    
+
+def augment_audio(
+    signal,
+    sample_rate,
+    prob=0.5,
+    time_stretch_range=(0.8, 1.2),
+    pitch_shift_range=(-2, 2),
+):
+
     # Time stretching
-    #if random.random() > prob:
+    # if random.random() > prob:
     #    time_stretch_factor = random.uniform(*time_stretch_range)
     #    signal = librosa.effects.time_stretch(signal, rate=time_stretch_factor)
-    
+
     # Pitch shifting
     if random.random() > prob:
         pitch_shift_steps = random.randint(*pitch_shift_range)
-        signal = librosa.effects.pitch_shift(signal, sr=sample_rate, n_steps = pitch_shift_steps)
-    
+        signal = librosa.effects.pitch_shift(
+            signal, sr=sample_rate, n_steps=pitch_shift_steps
+        )
+
     return signal
 
-def print_speakers(path_lists): 
+
+def print_speakers(path_lists):
     # print the file names included in the dataset
     for i in range(len(path_lists)):
         name = path_lists[i].split("/")[-1]
         print(name)
-    

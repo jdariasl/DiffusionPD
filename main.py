@@ -17,7 +17,7 @@ from utils.utils import (
     pred_T_effect,
     get_bottleneck_embeddings,
 )
-from models.unet import UNet, BatchNormlizer
+from models.unet import UNet
 from sklearn.metrics import classification_report
 
 warnings.warn = lambda *args, **kwargs: None
