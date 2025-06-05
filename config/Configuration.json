@@ -11,7 +11,7 @@
     "num_epochs_vae": 100,
     "num_epochs_diff": 500,
     "device": 1,
-    "seed": 151617,
+    "seed": 1234,
     "learning_rate_vae": 2e-5,
     "lr_warmup_steps" : 200,
     "learning_rate_diff": 1e-6,
@@ -19,13 +19,16 @@
   },
   "flags": {
     "resume_training_vae": false,
-    "train_vae": true,
+    "train_vae": false,
+    "da": true,
     "test_vae": false,
     "train_diffusion": false,
     "sample_diffusion": false,
     "eval_classpred": false,
     "pred_T_effect": false,
-    "get_embeddings": true
+    "get_embeddings": false,
+    "plot_embeddings": false,
+    "linear_db_classifier": false
   },
   "paths": {
     "vae_model_path": "saved_models/vae_seed_1234.pth",

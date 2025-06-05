@@ -5,9 +5,15 @@ import json
 from diffusers import DDPMScheduler
 from train.sampler_diffusion import Class_DDPMPipeline
 import matplotlib.pyplot as plt
+from matplotlib.cm import get_cmap
+from matplotlib.colors import ListedColormap
+from sklearn.linear_model import LogisticRegression
+from sklearn.metrics import classification_report
 import seaborn as sns
 from sklearn.metrics import roc_curve, roc_auc_score
+from sklearn.manifold import TSNE
 import numpy as np
+import umap
 
 
 def read_config(file_path):
@@ -563,6 +569,7 @@ def get_bottleneck_embeddings(data_loader, vae, model, time_steps, device, pred_
     true_vectors = []
     true_labels = []
     speakers = []
+    database_ids = []
 
     # set constant diffusion parameters
     noise_scheduler = DDPMScheduler(
@@ -574,11 +581,11 @@ def get_bottleneck_embeddings(data_loader, vae, model, time_steps, device, pred_
 
     pipeline = Class_DDPMPipeline(unet=model, scheduler=noise_scheduler)
     with torch.no_grad():
-        for i, (data, _, label, speaker_id, _) in enumerate(data_loader):
+        for i, (data, _, label, speaker_id, db_id) in enumerate(data_loader):
             data = data.to(device)
             mu, _ = vae.encode(data)
             mu = mu.to(device)
-
+            database_ids.append(db_id)
             # noise = torch.randn_like(mu).to(device)
             # mu = noise_scheduler.add_noise(
             #    mu,
@@ -607,6 +614,7 @@ def get_bottleneck_embeddings(data_loader, vae, model, time_steps, device, pred_
     embeddings = embeddings.reshape(embeddings.shape[0], -1)  # Flatten if needed
     true_vectors = np.concatenate(true_vectors)
     generated_vectors = np.concatenate(generated_vectors)
+    database_ids = np.concatenate(database_ids)
 
     return (
         embeddings,
@@ -614,4 +622,131 @@ def get_bottleneck_embeddings(data_loader, vae, model, time_steps, device, pred_
         generated_vectors,
         true_labels,
         speakers,
+        database_ids,
     )
+
+
+def plot_embeddings(
+    train_embeddings,
+    train_true_labels,
+    train_sources,
+    test_embeddings,
+    test_true_labels,
+    test_sources,
+    method="umap",
+    filename="embedding_plot.png",
+):
+    """
+    Plots UMAP or t-SNE projections of train and test embeddings.
+    Each (class, source) pair is assigned a unique color.
+
+    Args:
+        train_embeddings (np.ndarray): Training embeddings.
+        train_true_labels (np.ndarray): Training labels.
+        train_sources (np.ndarray): Dataset sources for training data.
+        test_embeddings (np.ndarray): Test embeddings.
+        test_true_labels (np.ndarray): Test labels.
+        test_sources (np.ndarray): Dataset sources for test data.
+        method (str): "umap" or "tsne".
+        filename (str): Path to save the figure.
+    """
+
+    # Step 1: Project data
+    if method.lower() == "umap":
+        reducer = umap.UMAP(random_state=42)
+        train_proj = reducer.fit_transform(train_embeddings)
+        test_proj = reducer.transform(test_embeddings)
+    elif method.lower() == "tsne":
+        tsne = TSNE(n_components=2, random_state=42, init='pca', learning_rate='auto')
+        combined_embeddings = np.vstack((train_embeddings, test_embeddings))
+        combined_proj = tsne.fit_transform(combined_embeddings)
+        train_proj = combined_proj[:len(train_embeddings)]
+        test_proj = combined_proj[len(train_embeddings):]
+    else:
+        raise ValueError("Invalid method. Choose 'umap' or 'tsne'.")
+
+    # Step 2: Create composite (class, source) labels
+    train_combo_labels = np.array([f"{label}_{source}" for label, source in zip(train_true_labels, train_sources)])
+    test_combo_labels = np.array([f"{label}_{source}" for label, source in zip(test_true_labels, test_sources)])
+
+    all_combo_labels = np.concatenate([train_combo_labels, test_combo_labels])
+    unique_combos = np.unique(all_combo_labels)
+    combo_to_index = {combo: idx for idx, combo in enumerate(unique_combos)}
+    cmap = get_cmap("tab20", len(unique_combos))
+    color_map = [cmap(combo_to_index[label]) for label in all_combo_labels]
+    train_colors = color_map[:len(train_proj)]
+    test_colors = color_map[len(train_proj):]
+
+    # Step 3: Plot
+    fig, axes = plt.subplots(2, 1, figsize=(12, 10))
+
+    axes[0].scatter(train_proj[:, 0], train_proj[:, 1], color=train_colors, alpha=0.7)
+    axes[0].set_title(f"Train Embeddings ({method.upper()})")
+    axes[0].set_xlabel(f"{method.upper()}-1")
+    axes[0].set_ylabel(f"{method.upper()}-2")
+
+    axes[1].scatter(test_proj[:, 0], test_proj[:, 1], color=test_colors, alpha=0.7)
+    axes[1].set_title(f"Test Embeddings ({method.upper()})")
+    axes[1].set_xlabel(f"{method.upper()}-1")
+    axes[1].set_ylabel(f"{method.upper()}-2")
+
+    # Legend
+    handles = []
+    for combo, idx in combo_to_index.items():
+        handles.append(plt.Line2D([0], [0], marker='o', color='w',
+                                  markerfacecolor=cmap(idx), label=combo, markersize=8))
+    fig.legend(handles=handles, title="Class_Source", loc="upper center", ncol=5)
+
+    plt.tight_layout(rect=[0, 0, 1, 0.95])
+    plt.savefig(filename)
+    plt.close()
+
+def linear_probe_classifier(
+    train_embeddings,
+    train_labels,
+    test_embeddings,
+    test_labels,
+    solver='lbfgs',
+    max_iter=1000,
+    penalty='l2',
+    C=1.0,
+):
+    """
+    Trains a linear classifier (logistic regression) on precomputed embeddings (linear probe).
+    Evaluates on the test set and returns a classification report.
+
+    Args:
+        train_embeddings (np.ndarray): Training embeddings.
+        train_labels (np.ndarray): Ground truth labels for training.
+        test_embeddings (np.ndarray): Test embeddings.
+        test_labels (np.ndarray): Ground truth labels for testing.
+        solver (str): Solver used by LogisticRegression. Default is 'lbfgs'.
+        max_iter (int): Maximum iterations for the solver.
+        penalty (str): Regularization penalty.
+        C (float): Inverse regularization strength.
+
+    Returns:
+        report (str): Text classification report.
+    """
+    # Initialize linear classifier
+    clf = LogisticRegression(
+        solver=solver,
+        max_iter=max_iter,
+        penalty=penalty,
+        C=C,
+        multi_class='auto',
+        random_state=42
+    )
+
+    # Train on embeddings
+    clf.fit(train_embeddings, train_labels)
+
+    # Predict on test embeddings
+    test_preds = clf.predict(test_embeddings)
+
+    # Generate classification report
+    report = classification_report(test_labels, test_preds)
+    print("=== Classification Report ===")
+    print(report)
+
+    return report

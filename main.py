@@ -2,10 +2,10 @@
 import torch
 import numpy as np
 from data.dataset import Pataka_Dataset
-from train.train_vae import train_vae
+from train.train_vae import train_vae, train_vae_da
 from train.train_diffusion import train_diffusion
 import warnings
-from models.vae import VAE
+from models.vae import VAE, VAE_DA
 from utils.utils import (
     test_vae,
     sample_plot_image,
@@ -16,6 +16,8 @@ from utils.utils import (
     plot_kde_and_roc,
     pred_T_effect,
     get_bottleneck_embeddings,
+    plot_embeddings,
+    linear_probe_classifier,
 )
 from models.unet import UNet
 from sklearn.metrics import classification_report
@@ -32,27 +34,42 @@ def main():
         device = torch.device("cpu")
     print(device)
 
-    # Load test data
-    test_dataset = Pataka_Dataset(
-        DBs=["Gita", "Neurovoz"], train_size=0.91, mode="test", seed=SEED
-    )
-    test_dataset = torch.utils.data.DataLoader(
-        test_dataset,
-        batch_size=args["optimization_parameters"]["batch_size"],
-        shuffle=True,
-    )
+    if args["flags"]["plot_embeddings"] or args["flags"]["linear_db_classifier"]:
+        pass
+    else:
+        # Load test data
+        test_dataset = Pataka_Dataset(
+            DBs=["Gita", "Neurovoz"], train_size=0.91, mode="test", seed=SEED
+        )
+        test_dataset = torch.utils.data.DataLoader(
+            test_dataset,
+            batch_size=args["optimization_parameters"]["batch_size"],
+            shuffle=True,
+        )
 
     if not args["flags"]["train_vae"]:
         # load pretrained VAE model
-        vae = VAE(
-            args["model_parameters"]["in_channels"],
-            z_dim=args["model_parameters"]["latent_dim"],
-        ).to(device)
-        vae.load_state_dict(
-            torch.load(args["paths"]["vae_model_path"], map_location=device)[
-                "model_state_dict"
-            ]
-        )
+        if args["flags"]["da"]:
+            vae = VAE_DA(
+                args["model_parameters"]["in_channels"],
+                z_dim=args["model_parameters"]["latent_dim"],
+            ).to(device)
+            vae.load_state_dict(
+                torch.load(args["paths"]["vae_model_path"], map_location=device)[
+                    "model_state_dict"
+                ]
+            )
+
+        else:
+            vae = VAE(
+                args["model_parameters"]["in_channels"],
+                z_dim=args["model_parameters"]["latent_dim"],
+            ).to(device)
+            vae.load_state_dict(
+                torch.load(args["paths"]["vae_model_path"], map_location=device)[
+                    "model_state_dict"
+                ]
+            )
     else:
 
         vae_dataset = Pataka_Dataset(
@@ -68,40 +85,78 @@ def main():
         )
         if not args["flags"]["resume_training_vae"]:
             # train VAE from scratch
-            vae = train_vae(
-                vae_dataset,
-                test_dataset,
-                x_dim=args["model_parameters"]["in_channels"],
-                z_dim=args["model_parameters"]["latent_dim"],
-                epochs=args["optimization_parameters"]["num_epochs_vae"],
-                lr=args["optimization_parameters"]["learning_rate_vae"],
-                device=device,
-            )
+            if args["flags"]["da"]:
+                # train VAE with domain adaptation
+                vae = train_vae_da(
+                    vae_dataset,
+                    test_dataset,
+                    x_dim=args["model_parameters"]["in_channels"],
+                    z_dim=args["model_parameters"]["latent_dim"],
+                    epochs=args["optimization_parameters"]["num_epochs_vae"],
+                    lr=args["optimization_parameters"]["learning_rate_vae"],
+                    device=device,
+                )
+            else:
+                vae = train_vae(
+                    vae_dataset,
+                    test_dataset,
+                    x_dim=args["model_parameters"]["in_channels"],
+                    z_dim=args["model_parameters"]["latent_dim"],
+                    epochs=args["optimization_parameters"]["num_epochs_vae"],
+                    lr=args["optimization_parameters"]["learning_rate_vae"],
+                    device=device,
+                )
         elif args["flags"]["resume_training_vae"]:
             # load pretrained VAE model
-            vae = VAE(
-                args["model_parameters"]["in_channels"],
-                z_dim=args["model_parameters"]["latent_dim"],
-            ).to(device)
-            vae.load_state_dict(
-                torch.load(args["paths"]["vae_model_path"], map_location=device)[
-                    "model_state_dict"
-                ]
-            )
+            if args["flags"]["da"]:
+                vae = VAE_DA(
+                    args["model_parameters"]["in_channels"],
+                    z_dim=args["model_parameters"]["latent_dim"],
+                ).to(device)
+                vae.load_state_dict(
+                    torch.load(args["paths"]["vae_model_path"], map_location=device)[
+                        "model_state_dict"
+                    ]
+                )
+            else:
+                vae = VAE(
+                    args["model_parameters"]["in_channels"],
+                    z_dim=args["model_parameters"]["latent_dim"],
+                ).to(device)
+                vae.load_state_dict(
+                    torch.load(args["paths"]["vae_model_path"], map_location=device)[
+                        "model_state_dict"
+                    ]
+                )
             vae.train()
 
             # train VAE from scratch
-            vae = train_vae(
-                vae_dataset,
-                test_dataset,
-                x_dim=args["model_parameters"]["in_channels"],
-                z_dim=args["model_parameters"]["latent_dim"],
-                epochs=args["optimization_parameters"]["num_epochs_vae"],
-                lr=args["optimization_parameters"]["learning_rate_vae"],
-                device=device,
-                resume_training=True,
-                vae=vae,
-            )
+            if args["flags"]["da"]:
+                # train VAE with domain adaptation
+                vae = train_vae_da(
+                    vae_dataset,
+                    test_dataset,
+                    x_dim=args["model_parameters"]["in_channels"],
+                    z_dim=args["model_parameters"]["latent_dim"],
+                    epochs=args["optimization_parameters"]["num_epochs_vae"],
+                    lr=args["optimization_parameters"]["learning_rate_vae"],
+                    device=device,
+                    resume_training=True,
+                    vae=vae,
+                )
+            else:
+                # train VAE without domain adaptation
+                vae = train_vae(
+                    vae_dataset,
+                    test_dataset,
+                    x_dim=args["model_parameters"]["in_channels"],
+                    z_dim=args["model_parameters"]["latent_dim"],
+                    epochs=args["optimization_parameters"]["num_epochs_vae"],
+                    lr=args["optimization_parameters"]["learning_rate_vae"],
+                    device=device,
+                    resume_training=True,
+                    vae=vae,
+                )
 
     # test vae reconstructions quality
     if args["flags"]["test_vae"]:
@@ -323,6 +378,7 @@ def main():
             train_generated_vectors,
             train_true_labels,
             train_speakers,
+            train_database,
         ) = get_bottleneck_embeddings(
             diff_dataset,
             vae,
@@ -337,6 +393,7 @@ def main():
             test_generated_vectors,
             test_true_labels,
             test_speakers,
+            test_database,
         ) = get_bottleneck_embeddings(
             test_dataset,
             vae,
@@ -356,7 +413,40 @@ def main():
         np.save("saved_embeddings/test_generated_vectors.npy", test_generated_vectors)
         np.save("saved_embeddings/test_true_labels.npy", test_true_labels)
         np.save("saved_embeddings/test_speakers.npy", test_speakers)
+        np.save("saved_embeddings/train_database.npy", train_database)
+        np.save("saved_embeddings/test_database.npy", test_database)
         print("Embeddings saved successfully.")
+
+    if args["flags"]["plot_embeddings"]:
+        # load embeddings
+        train_embeddings = np.load("saved_embeddings/train_embeddings.npy")
+        test_embeddings = np.load("saved_embeddings/test_embeddings.npy")
+        train_true_labels = np.load("saved_embeddings/train_true_labels.npy")
+        test_true_labels = np.load("saved_embeddings/test_true_labels.npy")
+        train_database = np.load("saved_embeddings/train_database.npy")
+        test_database = np.load("saved_embeddings/test_database.npy")
+        # plot UMAP embeddings
+        plot_embeddings(
+            train_embeddings,
+            train_true_labels,
+            train_database,
+            test_embeddings,
+            test_true_labels,
+            test_database,
+        )
+
+    if args["flags"]["linear_db_classifier"]:
+        train_embeddings = np.load("saved_embeddings/train_true_vectors.npy")
+        test_embeddings = np.load("saved_embeddings/test_true_vectors.npy")
+        train_database = np.load("saved_embeddings/train_database.npy")
+        test_database = np.load("saved_embeddings/test_database.npy")
+
+        _ = linear_probe_classifier(
+            train_embeddings,
+            train_database,
+            test_embeddings,
+            test_database,
+        )
 
     return
 
