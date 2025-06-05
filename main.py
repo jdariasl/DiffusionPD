@@ -18,6 +18,7 @@ from utils.utils import (
     get_bottleneck_embeddings,
     plot_embeddings,
     linear_probe_classifier,
+    get_idle_gpu,
 )
 from models.unet import UNet
 from sklearn.metrics import classification_report
@@ -29,7 +30,9 @@ def main():
     args = read_config("config/Configuration.json")
     SEED = args["optimization_parameters"]["seed"]
     if args["optimization_parameters"]["device"]:
-        device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        device = get_idle_gpu()
+        print(f"Using device: {device}")
+        #device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     else:
         device = torch.device("cpu")
     print(device)

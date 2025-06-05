@@ -19,9 +19,10 @@
   },
   "flags": {
     "resume_training_vae": false,
-    "train_vae": false,
+    "train_vae": true,
     "da": true,
     "test_vae": false,
+    "resume_training_diff": false,
     "train_diffusion": false,
     "sample_diffusion": false,
     "eval_classpred": false,
@@ -31,8 +32,8 @@
     "linear_db_classifier": false
   },
   "paths": {
-    "vae_model_path": "saved_models/vae_seed_1234.pth",
-    "diffusion_model_path": "saved_models/diffusion_seed_1234.pth"
+    "vae_model_path": "saved_models/vae.pth",
+    "diffusion_model_path": "saved_models/diffusion.pth"
   }
 }
 

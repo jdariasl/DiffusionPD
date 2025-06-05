@@ -14,7 +14,25 @@ from sklearn.metrics import roc_curve, roc_auc_score
 from sklearn.manifold import TSNE
 import numpy as np
 import umap
+import subprocess
+import re
 
+def get_idle_gpu():
+    if not torch.cuda.is_available():
+        return torch.device("cpu")
+    
+    try:
+        # Execute nvidia-smi to get GPU information
+        output = subprocess.check_output(["nvidia-smi", "--query-gpu=memory.free", "--format=csv,nounits,noheader"], encoding="utf-8")
+        memory_free = [int(x.strip()) for x in output.strip().split('\n')]
+        
+        # Find the GPU with the most free memory
+        idle_gpu_index = memory_free.index(max(memory_free))
+        return torch.device(f"cuda:{idle_gpu_index}")
+    
+    except Exception as e:
+        print(f"Error getting GPU info: {e}")
+        return torch.device("cuda:0") # Default to first GPU
 
 def read_config(file_path):
     """

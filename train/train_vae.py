@@ -1,4 +1,4 @@
-from models.vae import VAE
+from models.vae import VAE, VAE_DA
 from losses.losses import vae_loss, vae_loss_da
 import torch
 import torch.nn as nn
@@ -84,7 +84,7 @@ def train_vae_da(
         model = vae
     else:
         # Initialize the VAE model
-        model = VAE(x_dim, z_dim).to(device)
+        model = VAE_DA(x_dim, z_dim).to(device)
 
     optimizer = optim.Adam(model.parameters(), lr=lr)
     for epoch in range(epochs):
@@ -95,7 +95,7 @@ def train_vae_da(
             data_o = data_o.to(device)
             optimizer.zero_grad()
             recon_batch, mu, logvar = model(data)
-            db_logit = model.domain_classifier(mu)
+            db_logit = model.db_classifier(mu)
             # Map db_group to dic index
             db = [db_dir[db_group[i]] for i in range(len(db_group))]
             db_group = torch.tensor(db, dtype=torch.long).to(device)
@@ -110,7 +110,7 @@ def train_vae_da(
                 epoch, train_loss / len(train_loader.dataset)
             )
         )
-        loss_val = test_vae(test_loader, model, device)
+        loss_val = test_vae_da(test_loader, model, device)
 
         if loss_val < best_loss_val:
             best_loss_val = loss_val
@@ -136,6 +136,24 @@ def test_vae(test_loader, model, device):
             data_o = data_o.to(device)
             recon_batch, mu, logvar = model(data)
             test_loss += vae_loss(recon_batch, data_o, mu, logvar).item()
+    test_loss /= len(test_loader.dataset)
+    print("====> Test set loss: {:.4f}".format(test_loss))
+    return test_loss
+
+def test_vae_da(test_loader, model, device):
+    model.eval()
+    test_loss = 0
+    with torch.no_grad():
+        for i, (data_o, data, _, _, db_group) in enumerate(test_loader):
+            data = data.to(device)
+            data_o = data_o.to(device)
+            recon_batch, mu, logvar = model(data)
+            db_logit = model.db_classifier(mu)
+            # Map db_group to dic index
+            db = [db_dir[db_group[i]] for i in range(len(db_group))]
+            db_group = torch.tensor(db, dtype=torch.long).to(device)
+            db = db_group.to(device)
+            test_loss += vae_loss_da(recon_batch, data_o, mu, logvar, db_logit, db).item()
     test_loss /= len(test_loader.dataset)
     print("====> Test set loss: {:.4f}".format(test_loss))
     return test_loss

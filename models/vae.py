@@ -125,7 +125,7 @@ class VAE_DA(nn.Module):
         z_dim=32,
         hidden_dims_spectrogram=[64, 1024, 64],
     ):
-        super(VAE, self).__init__()
+        super(VAE_DA, self).__init__()
         self.x_dim = x_dim
         self.latent_dim = z_dim
         self.hidden_dims_spectrogram = hidden_dims_spectrogram
